@@ -30,12 +30,12 @@ const LandingPage = () => {
 
   const handleDashboardClick = () => {
     try {
-      console.log('Navigating to dashboard...');
-      router.push('/dashboard');
+      console.log('Navigating to login...');
+      router.push('/login');
     } catch (error) {
       console.error('Router navigation failed:', error);
       // Fallback to window.location
-      window.location.href = '/dashboard';
+      window.location.href = '/login';
     }
   };
 

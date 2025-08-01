@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
+import { useAuth } from '@/components/providers/AuthProvider'
 import {
   BookOpen,
   Home,
@@ -85,6 +86,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
+  const { user, logout } = useAuth()
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -190,8 +192,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   <User className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <div className="text-sm font-medium text-gray-900">Ibu Sari</div>
-                  <div className="text-xs text-gray-500">Bendahara Kelas</div>
+                  <div className="text-sm font-medium text-gray-900">{user?.name || 'User'}</div>
+                  <div className="text-xs text-gray-500">{user?.role === 'bendahara' ? 'Bendahara Kelas' : 'Admin'}</div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>
@@ -205,7 +207,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                     <User className="w-4 h-4 mr-2" />
                     Profil Saya
                   </Link>
-                  <button className="flex w-full items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg">
+                  <button 
+                    onClick={logout}
+                    className="flex w-full items-center px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-b-lg"
+                  >
                     <LogOut className="w-4 h-4 mr-2" />
                     Keluar
                   </button>

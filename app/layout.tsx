@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import ToastProvider from '@/components/providers/ToastProvider'
+import { AuthProvider } from '@/components/providers/AuthProvider'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -71,11 +72,13 @@ export default function RootLayout({
         <meta name="apple-mobile-web-app-status-bar-style" content="default" />
       </head>
       <body className={`${inter.className} antialiased bg-gray-50`}>
-        <div id="root" className="min-h-screen flex flex-col">
-          {children}
-        </div>
-        <div id="modal-root"></div>
-        <ToastProvider />
+        <AuthProvider>
+          <div id="root" className="min-h-screen flex flex-col">
+            {children}
+          </div>
+          <div id="modal-root"></div>
+          <ToastProvider />
+        </AuthProvider>
       </body>
     </html>
   )
