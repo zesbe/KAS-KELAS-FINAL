@@ -5,10 +5,9 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
-import { sendBulkWhatsAppMessages, messageUtils } from '@/lib/starsender'
-import { generatePaymentUrl, generateOrderId } from '@/lib/pakasir'
 import { Student } from '@/lib/supabase'
 import { studentService } from '@/lib/student-service'
+import { starSenderService } from '@/lib/starsender-service'
 import toast from 'react-hot-toast'
 import { 
   CreditCard, 
@@ -102,76 +101,124 @@ const QuickActions: React.FC = () => {
     }
   }
 
-  // Function to send monthly payment reminders
+  // Function to send monthly payment reminders via StarSender API
   const handleSendMonthlyPayments = async () => {
+    if (students.length === 0) {
+      toast.error('Tidak ada data siswa')
+      return
+    }
+
     setIsLoading(true)
-    toast.loading('Mengirim tagihan bulanan...')
+    toast('Memulai pengiriman tagihan bulanan via StarSender...', { icon: 'ℹ️' })
     
     try {
-      const recipients = students.map(student => {
-        const orderId = generateOrderId()
-        const paymentLink = generatePaymentUrl(25000, orderId)
-        const message = messageUtils.createBillingMessage(
-          student.nama,
-          'Februari 2024',
-          25000,
-          '2024-02-28',
-          paymentLink
-        )
-        
-        return {
-          phone: student.nomor_hp_ortu,
-          message,
-          studentId: student.id
+      const currentMonth = new Date().toLocaleDateString('id-ID', { month: 'long', year: 'numeric' })
+      const dueDate = new Date()
+      dueDate.setDate(dueDate.getDate() + 7) // 7 days from now
+      
+      let successCount = 0
+      let failedCount = 0
+      
+      for (const student of students) {
+        try {
+          const result = await starSenderService.sendPaymentReminder(
+            student.nama,
+            student.nama_ortu,
+            student.nomor_hp_ortu,
+            25000,
+            dueDate.toLocaleDateString('id-ID')
+          )
+          
+          if (result.success) {
+            successCount++
+            console.log(`✅ Tagihan terkirim ke ${student.nama}`)
+          } else {
+            failedCount++
+            console.log(`❌ Gagal kirim ke ${student.nama}: ${result.message}`)
+          }
+          
+          // Delay between messages
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        } catch (error) {
+          failedCount++
+          console.error(`Error sending to ${student.nama}:`, error)
         }
-      })
-
-      const results = await sendBulkWhatsAppMessages(recipients)
-      const successCount = results.filter(r => r.success).length
+      }
       
-      toast.dismiss()
-      toast.success(`Tagihan bulanan berhasil dikirim ke ${successCount} orang tua`)
+      if (successCount > 0) {
+        toast.success(`✅ Berhasil mengirim ${successCount} tagihan bulanan`)
+      }
+      if (failedCount > 0) {
+        toast.error(`❌ ${failedCount} tagihan gagal dikirim`)
+      }
       
-      // Navigate to WhatsApp page to see results
-      router.push('/dashboard/whatsapp')
+      // Navigate to WhatsApp page
+      setTimeout(() => {
+        router.push('/dashboard/whatsapp')
+      }, 1000)
     } catch (error) {
-      toast.dismiss()
+      console.error('Error sending monthly payments:', error)
       toast.error('Gagal mengirim tagihan bulanan')
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Function to send payment reminders
+  // Function to send payment reminders via StarSender API
   const handleSendReminders = async () => {
+    if (students.length === 0) {
+      toast.error('Tidak ada data siswa')
+      return
+    }
+
     setIsLoading(true)
-    toast.loading('Mengirim reminder pembayaran...')
+    toast('Mengirim reminder pembayaran via StarSender...', { icon: 'ℹ️' })
     
     try {
-      // Filter only students with pending payments (sample: first 3)
-      const studentsWithPendingPayments = students.slice(0, 3)
+      // Filter students for reminder (sample: first 5 for demo)
+      const studentsForReminder = students.slice(0, Math.min(5, students.length))
       
-      const recipients = studentsWithPendingPayments.map(student => {
-        const orderId = generateOrderId()
-        const paymentLink = generatePaymentUrl(25000, orderId)
-        const message = `⏰ *REMINDER PEMBAYARAN*\n\nYth. Orang Tua *${student.nama}*\n\n💳 Tagihan kas kelas bulan Januari masih belum terbayar\n💰 Nominal: Rp 25.000\n📅 Mohon segera diselesaikan\n\n🔗 Bayar sekarang: ${paymentLink}\n\nTerima kasih 🙏`
-        
-        return {
-          phone: student.nomor_hp_ortu,
-          message,
-          studentId: student.id
+      let successCount = 0
+      let failedCount = 0
+      
+      for (const student of studentsForReminder) {
+        try {
+          const result = await starSenderService.sendOverdueNotice(
+            student.nama,
+            student.nama_ortu,
+            student.nomor_hp_ortu,
+            25000,
+            5 // 5 days overdue
+          )
+          
+          if (result.success) {
+            successCount++
+            console.log(`✅ Reminder terkirim ke ${student.nama}`)
+          } else {
+            failedCount++
+            console.log(`❌ Gagal kirim reminder ke ${student.nama}: ${result.message}`)
+          }
+          
+          // Delay between messages
+          await new Promise(resolve => setTimeout(resolve, 2000))
+        } catch (error) {
+          failedCount++
+          console.error(`Error sending reminder to ${student.nama}:`, error)
         }
-      })
-
-      const results = await sendBulkWhatsAppMessages(recipients)
-      const successCount = results.filter(r => r.success).length
+      }
       
-      toast.dismiss()
-      toast.success(`Reminder berhasil dikirim ke ${successCount} orang tua`)
+      if (successCount > 0) {
+        toast.success(`✅ Berhasil mengirim ${successCount} reminder`)
+      }
+      if (failedCount > 0) {
+        toast.error(`❌ ${failedCount} reminder gagal dikirim`)
+      }
       
-      router.push('/dashboard/whatsapp')
+      setTimeout(() => {
+        router.push('/dashboard/whatsapp')
+      }, 1000)
     } catch (error) {
-      toast.dismiss()
+      console.error('Error sending reminders:', error)
       toast.error('Gagal mengirim reminder')
     } finally {
       setIsLoading(false)

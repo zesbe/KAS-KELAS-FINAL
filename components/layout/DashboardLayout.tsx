@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import { Button } from '@/components/ui/Button'
 import { useAuth } from '@/components/providers/AuthProvider'
+import { balanceService, formatCurrency } from '@/lib/balanceService'
 import {
   BookOpen,
   Home,
@@ -84,9 +85,31 @@ const navigation: NavigationItem[] = [
 const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [currentBalance, setCurrentBalance] = useState(0)
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
+
+  // Load current balance
+  useEffect(() => {
+    const loadBalance = async () => {
+      try {
+        const balanceData = await balanceService.getCurrentBalance()
+        setCurrentBalance(balanceData.currentBalance)
+      } catch (error) {
+        console.error('Error loading balance:', error)
+      }
+    }
+
+    loadBalance()
+
+    // Subscribe to real-time balance changes
+    const unsubscribe = balanceService.subscribeToBalanceChanges((balance) => {
+      setCurrentBalance(balance.currentBalance)
+    })
+
+    return unsubscribe
+  }, [])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -132,8 +155,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 <span className="text-sm font-medium text-gray-600">Saldo Kas</span>
                 <Wallet className="w-4 h-4 text-blue-600" />
               </div>
-              <div className="text-2xl font-bold text-gray-900">Rp 2.875.000</div>
-              <div className="text-xs text-green-600 mt-1">↗ +12% bulan ini</div>
+              <div className="text-2xl font-bold text-gray-900">
+                {formatCurrency(currentBalance)}
+              </div>
+              <div className="text-xs text-green-600 mt-1">
+                {currentBalance > 0 ? '↗ Real-time' : '↘ Real-time'}
+              </div>
             </div>
           </div>
 
@@ -192,8 +219,8 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                   <User className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1 text-left">
-                  <div className="text-sm font-medium text-gray-900">{user?.name || 'User'}</div>
-                  <div className="text-xs text-gray-500">{user?.role === 'bendahara' ? 'Bendahara Kelas' : 'Admin'}</div>
+                  <div className="text-sm font-medium text-gray-900">{user?.full_name || user?.username || 'User'}</div>
+                  <div className="text-xs text-gray-500">{user?.role === 'bendahara' ? 'Bendahara Kelas' : user?.role === 'admin' ? 'Admin' : 'User'}</div>
                 </div>
                 <ChevronDown className="w-4 h-4 text-gray-400" />
               </button>

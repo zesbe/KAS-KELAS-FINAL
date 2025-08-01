@@ -128,7 +128,7 @@ export class SettingsService {
         return { data: null, error }
       }
       
-      const settingsObj = data?.reduce((acc, setting) => {
+      const settingsObj = data?.reduce((acc: any, setting: any) => {
         acc[setting.key] = setting.value
         return acc
       }, {} as Record<string, string>) || {}

@@ -1,22 +1,15 @@
 'use client'
 
-import { createSupabaseClient, createSupabaseServiceClient, Student, supabaseHelpers } from '@/lib/supabase'
+import { supabase, Student, supabaseHelpers } from '@/lib/supabase'
 
 // Student service for all database operations
 export class StudentService {
-  private supabase = createSupabaseClient()
-  private supabaseService = createSupabaseServiceClient()
+  private supabase = supabase
 
   // Get all students
   async getAllStudents(activeOnly = true): Promise<{ data: Student[] | null; error: any }> {
     try {
-      // Try with anon key first, fallback to service role if needed
-      let result = await supabaseHelpers.getStudents(this.supabase, activeOnly)
-      
-      if (result.error || !result.data || result.data.length === 0) {
-        console.log('Anon key failed, trying service role...')
-        result = await supabaseHelpers.getStudents(this.supabaseService, activeOnly)
-      }
+      const result = await supabaseHelpers.getStudents(this.supabase, activeOnly)
       
       return result
     } catch (error) {
@@ -166,7 +159,7 @@ export class StudentService {
         .in('nomor_absen', nomorAbsenList)
 
       if (existing && existing.length > 0) {
-        const existingNumbers = existing.map(s => s.nomor_absen)
+        const existingNumbers = existing.map((s: any) => s.nomor_absen)
         return {
           data: null,
           error: { message: `Nomor absen sudah ada di database: ${existingNumbers.join(', ')}` }

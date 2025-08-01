@@ -1,6 +1,7 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import StatsCard from '@/components/dashboard/StatsCard'
 import PaymentChart from '@/components/dashboard/PaymentChart'
@@ -9,6 +10,9 @@ import QuickActions from '@/components/dashboard/QuickActions'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge, StatusBadge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
+import { balanceService, BalanceData, PaymentSummary, ExpenseSummary, formatCurrency } from '@/lib/balanceService'
+import { expenseService } from '@/lib/expense-service'
+import { supabase } from '@/lib/supabase'
 import { 
   Wallet, 
   Users, 
@@ -23,45 +27,97 @@ import {
   MessageCircle
 } from 'lucide-react'
 import { currencyUtils, dateUtils } from '@/lib/utils'
+import toast from 'react-hot-toast'
 
-// Sample data - in real app, this would come from Supabase
-const dashboardStats = {
-  totalBalance: 2875000,
-  totalStudents: 25,
-  paidStudents: 22,
-  unpaidStudents: 3,
-  overdueStudents: 1,
-  monthlyIncome: 650000,
-  monthlyExpense: 125000,
-  lastUpdated: new Date().toISOString()
+interface DashboardData {
+  balance: BalanceData
+  payments: PaymentSummary
+  expenses: ExpenseSummary
+  recentExpenses: any[]
+  unpaidStudents: any[]
 }
 
-const unpaidStudents = [
-  { id: 1, name: 'Muhammad Fajar', amount: 25000, daysOverdue: 0, phone: '628345678901' },
-  { id: 2, name: 'Nabila Azzahra', amount: 25000, daysOverdue: 2, phone: '628890123456' },
-  { id: 3, name: 'Kevin Alamsyah', amount: 25000, daysOverdue: 5, phone: '628123456780' }
-]
-
-const recentPayments = [
-  { id: 1, studentName: 'Ahmad Rizki', amount: 25000, timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString() },
-  { id: 2, studentName: 'Siti Nurhaliza', amount: 25000, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString() },
-  { id: 3, studentName: 'Aisyah Putri', amount: 25000, timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString() }
-]
-
 const DashboardPage: React.FC = () => {
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [dashboardData, setDashboardData] = useState<DashboardData | null>(null)
   const [lastRefresh, setLastRefresh] = useState(new Date())
+  const router = useRouter()
 
-  const handleRefresh = async () => {
-    setLoading(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    setLastRefresh(new Date())
-    setLoading(false)
+  // Load dashboard data from Supabase
+  const loadDashboardData = async () => {
+    try {
+      setLoading(true)
+      
+      // Get balance, payments, and expenses summary
+      const stats = await balanceService.getDashboardStats()
+      
+      // Get recent expenses
+      const { expenses: recentExpenses } = await expenseService.getExpenses({
+        limit: 5,
+        offset: 0
+      })
+
+      // Get unpaid students (dummy for now - will implement when payments table is populated)
+      const unpaidStudents = [
+        { id: 1, name: 'Muhammad Fajar', amount: 25000, daysOverdue: 0, phone: '628345678901' },
+        { id: 2, name: 'Nabila Azzahra', amount: 25000, daysOverdue: 2, phone: '628890123456' },
+        { id: 3, name: 'Kevin Alamsyah', amount: 25000, daysOverdue: 5, phone: '628123456780' }
+      ]
+
+      setDashboardData({
+        balance: stats.balance,
+        payments: stats.payments,
+        expenses: stats.expenses,
+        recentExpenses,
+        unpaidStudents
+      })
+
+      setLastRefresh(new Date())
+      toast.success('Data berhasil dimuat')
+    } catch (error) {
+      console.error('Error loading dashboard data:', error)
+      toast.error('Gagal memuat data dashboard')
+    } finally {
+      setLoading(false)
+    }
   }
 
-  const paymentCompletionRate = Math.round((dashboardStats.paidStudents / dashboardStats.totalStudents) * 100)
-  const balanceChange = dashboardStats.monthlyIncome - dashboardStats.monthlyExpense
+  const handleRefresh = async () => {
+    await loadDashboardData()
+  }
+
+  // Load data on component mount
+  useEffect(() => {
+    loadDashboardData()
+
+    // Subscribe to real-time balance changes
+    const unsubscribe = balanceService.subscribeToBalanceChanges((newBalance) => {
+      if (dashboardData) {
+        setDashboardData(prev => prev ? { ...prev, balance: newBalance } : null)
+      }
+    })
+
+    return unsubscribe
+  }, [])
+
+  if (loading || !dashboardData) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex items-center justify-center h-64">
+            <div className="text-center">
+              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
+              <p className="text-gray-600">Memuat data dashboard...</p>
+            </div>
+          </div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  const { balance, payments, expenses } = dashboardData
+  const paymentCompletionRate = payments.paymentRate
+  const balanceChange = balance.totalIncome - balance.totalExpenses
 
   return (
     <DashboardLayout>
@@ -91,13 +147,13 @@ const DashboardPage: React.FC = () => {
         </div>
 
         {/* Alert for overdue payments */}
-        {dashboardStats.overdueStudents > 0 && (
+        {dashboardData.unpaidStudents.filter(s => s.daysOverdue > 0).length > 0 && (
           <div className="bg-red-50 border border-red-200 rounded-lg p-4">
             <div className="flex items-center">
               <AlertTriangle className="w-5 h-5 text-red-600 mr-3" />
               <div className="flex-1">
                 <h3 className="text-sm font-medium text-red-800">
-                  Perhatian: {dashboardStats.overdueStudents} siswa terlambat bayar
+                  Perhatian: {dashboardData.unpaidStudents.filter(s => s.daysOverdue > 0).length} siswa terlambat bayar
                 </h3>
                 <p className="text-sm text-red-700 mt-1">
                   Segera kirim reminder atau hubungi orang tua siswa yang terlambat.
@@ -110,16 +166,33 @@ const DashboardPage: React.FC = () => {
           </div>
         )}
 
+        {/* Balance Alert */}
+        {balance.currentBalance < 500000 && (
+          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertTriangle className="w-5 h-5 text-yellow-600 mr-3" />
+              <div className="flex-1">
+                <h3 className="text-sm font-medium text-yellow-800">
+                  Saldo kas mulai menipis
+                </h3>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Saldo saat ini {formatCurrency(balance.currentBalance)}. Pertimbangkan untuk menunda pengeluaran non-urgent.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <StatsCard
             title="Saldo Kas"
-            value={currencyUtils.format(dashboardStats.totalBalance)}
+            value={formatCurrency(balance.currentBalance)}
             icon={Wallet}
             description="Total saldo saat ini"
             trend={{
-              value: 12,
-              label: 'bulan ini',
+              value: balanceChange > 0 ? Math.round((balanceChange / balance.totalIncome) * 100) : 0,
+              label: 'dari pemasukan',
               isPositive: balanceChange > 0
             }}
             color="blue"
@@ -127,11 +200,11 @@ const DashboardPage: React.FC = () => {
           
           <StatsCard
             title="Total Siswa"
-            value={dashboardStats.totalStudents}
+            value={payments.studentsPaid + payments.studentsUnpaid}
             icon={Users}
-            description={`${dashboardStats.paidStudents} sudah bayar`}
+            description={`${payments.studentsPaid} sudah bayar`}
             trend={{
-              value: paymentCompletionRate,
+              value: Math.round(paymentCompletionRate),
               label: 'completion rate',
               isPositive: paymentCompletionRate > 80
             }}
@@ -139,18 +212,18 @@ const DashboardPage: React.FC = () => {
           />
           
           <StatsCard
-            title="Pemasukan Bulan Ini"
-            value={currencyUtils.format(dashboardStats.monthlyIncome)}
+            title="Pemasukan"
+            value={formatCurrency(balance.totalIncome)}
             icon={CreditCard}
-            description="Pembayaran yang diterima"
+            description="Total pembayaran diterima"
             color="green"
           />
           
           <StatsCard
-            title="Pengeluaran Bulan Ini"
-            value={currencyUtils.format(dashboardStats.monthlyExpense)}
+            title="Pengeluaran"
+            value={formatCurrency(balance.totalExpenses)}
             icon={Receipt}
-            description="Total pengeluaran kas"
+            description={`${expenses.countApproved} transaksi approved`}
             color="red"
           />
         </div>
@@ -188,16 +261,16 @@ const DashboardPage: React.FC = () => {
                 <div>
                   <CardTitle>Siswa Belum Bayar</CardTitle>
                   <p className="text-sm text-gray-600 mt-1">
-                    {dashboardStats.unpaidStudents} dari {dashboardStats.totalStudents} siswa
+                    {dashboardData.unpaidStudents.length} dari {payments.studentsPaid + payments.studentsUnpaid} siswa
                   </p>
                 </div>
                 <Badge variant="warning">
-                  {dashboardStats.unpaidStudents}
+                  {dashboardData.unpaidStudents.length}
                 </Badge>
               </CardHeader>
               <CardContent>
                 <div className="space-y-3">
-                  {unpaidStudents.map((student) => (
+                  {dashboardData.unpaidStudents.map((student) => (
                     <div key={student.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">
@@ -223,7 +296,12 @@ const DashboardPage: React.FC = () => {
                 </div>
                 
                 <div className="mt-4 pt-4 border-t border-gray-200">
-                  <Button variant="primary" className="w-full" size="sm">
+                  <Button 
+                    variant="primary" 
+                    className="w-full" 
+                    size="sm"
+                    onClick={() => router.push('/dashboard/whatsapp')}
+                  >
                     <MessageCircle className="w-4 h-4 mr-2" />
                     Kirim Reminder WhatsApp
                   </Button>
@@ -233,13 +311,13 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Payments */}
+        {/* Recent Payments - Placeholder until payment system is implemented */}
         <Card>
           <CardHeader className="flex flex-row items-center justify-between">
             <div>
               <CardTitle>Pembayaran Terbaru</CardTitle>
               <p className="text-sm text-gray-600 mt-1">
-                {recentPayments.length} pembayaran diterima hari ini
+                Belum ada pembayaran hari ini
               </p>
             </div>
             <Button variant="ghost" size="sm">
@@ -248,43 +326,10 @@ const DashboardPage: React.FC = () => {
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3">
-                      Siswa
-                    </th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3">
-                      Jumlah
-                    </th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3">
-                      Waktu
-                    </th>
-                    <th className="text-left text-xs font-medium text-gray-500 uppercase tracking-wider py-3">
-                      Status
-                    </th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200">
-                  {recentPayments.map((payment) => (
-                    <tr key={payment.id} className="hover:bg-gray-50">
-                      <td className="py-3 text-sm font-medium text-gray-900">
-                        {payment.studentName}
-                      </td>
-                      <td className="py-3 text-sm text-green-600 font-medium">
-                        +{currencyUtils.format(payment.amount)}
-                      </td>
-                      <td className="py-3 text-sm text-gray-500">
-                        {dateUtils.getRelativeTime(payment.timestamp)}
-                      </td>
-                      <td className="py-3">
-                        <StatusBadge status="completed" />
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="text-center py-8">
+              <CreditCard className="w-12 h-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-500">Belum ada data pembayaran</p>
+              <p className="text-sm text-gray-400 mt-1">Pembayaran akan muncul di sini setelah sistem pembayaran aktif</p>
             </div>
           </CardContent>
         </Card>

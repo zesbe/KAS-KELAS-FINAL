@@ -5,11 +5,8 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-import { sendWhatsAppMessage, sendBulkWhatsAppMessages, messageUtils } from '@/lib/starsender'
-import { generatePaymentUrl, generateOrderId } from '@/lib/pakasir'
-import { Student } from '@/lib/supabase'
-import { studentService } from '@/lib/student-service'
-import ContactSelector from '@/components/whatsapp/ContactSelector'
+import BulkWhatsApp from '@/components/whatsapp/BulkWhatsApp'
+import StarSenderTest from '@/components/whatsapp/StarSenderTest'
 import toast from 'react-hot-toast'
 import { 
   MessageCircle, 
@@ -100,37 +97,10 @@ const messageTemplates: MessageTemplate[] = [
 
 const WhatsAppPage = () => {
   const [messages, setMessages] = useState<WhatsAppMessage[]>(sampleMessages)
-  const [activeTab, setActiveTab] = useState<'messages' | 'templates' | 'broadcast' | 'selective' | 'settings'>('messages')
+  const [activeTab, setActiveTab] = useState<'messages' | 'templates' | 'broadcast' | 'selective' | 'settings' | 'test'>('messages')
   const [selectedMessages, setSelectedMessages] = useState<string[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const [broadcastMessage, setBroadcastMessage] = useState('')
-  const [broadcastTitle, setBroadcastTitle] = useState('')
-  const [selectedContacts, setSelectedContacts] = useState<string[]>([])
-  const [students, setStudents] = useState<Student[]>([])
-  const [loadingStudents, setLoadingStudents] = useState(true)
 
-  // Load students data on component mount
-  useEffect(() => {
-    loadStudents()
-  }, [])
-
-  const loadStudents = async () => {
-    setLoadingStudents(true)
-    try {
-      const { data, error } = await studentService.getAllStudents(true) // Only active students
-      if (error) {
-        console.error('Error loading students:', error)
-        toast.error('Gagal memuat data siswa')
-      } else {
-        setStudents(data || [])
-      }
-    } catch (error) {
-      console.error('Error loading students:', error)
-      toast.error('Terjadi kesalahan saat memuat data')
-    } finally {
-      setLoadingStudents(false)
-    }
-  }
 
 
   const statusStats = {
@@ -140,149 +110,6 @@ const WhatsAppPage = () => {
     failed: messages.filter(m => m.status === 'failed').length
   }
 
-  // Function to send payment reminders
-  const handleSendPaymentReminders = async () => {
-    setIsLoading(true)
-    toast.loading('Mengirim reminder pembayaran...')
-    
-    try {
-      const recipients = students.map(student => {
-        const orderId = generateOrderId()
-        const paymentLink = generatePaymentUrl(25000, orderId)
-        const message = messageUtils.createBillingMessage(
-          student.nama,
-          'Februari 2024',
-          25000,
-          '2024-02-05',
-          paymentLink
-        )
-        
-        return {
-          phone: student.nomor_hp_ortu,
-          message,
-          studentId: student.id
-        }
-      })
-
-      const results = await sendBulkWhatsAppMessages(recipients)
-      const successCount = results.filter(r => r.success).length
-      const failCount = results.filter(r => !r.success).length
-      
-      // Update messages state with new sent messages
-      const newMessages = results.map((result, index) => ({
-        id: Date.now().toString() + index,
-        type: 'payment_reminder' as const,
-        recipient: recipients[index].phone,
-        recipient_name: students[index].nama_ortu,
-        student_name: students[index].nama,
-        message: recipients[index].message,
-        status: result.success ? 'sent' as const : 'failed' as const,
-        sent_at: new Date().toISOString()
-      }))
-      
-      setMessages(prev => [...newMessages, ...prev])
-      
-      toast.dismiss()
-      toast.success(`Berhasil kirim ${successCount} pesan, ${failCount} gagal`)
-    } catch (error) {
-      toast.dismiss()
-      toast.error('Gagal mengirim reminder pembayaran')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Function to send broadcast message
-  const handleSendBroadcast = async () => {
-    if (!broadcastMessage.trim() || !broadcastTitle.trim()) {
-      toast.error('Judul dan pesan harus diisi')
-      return
-    }
-
-    setIsLoading(true)
-    toast.loading('Mengirim broadcast...')
-    
-    try {
-      const message = messageUtils.createBroadcastMessage(broadcastTitle, broadcastMessage)
-      const recipients = students.map(student => ({
-        phone: student.nomor_hp_ortu,
-        message,
-        studentId: student.id
-      }))
-
-      const results = await sendBulkWhatsAppMessages(recipients)
-      const successCount = results.filter(r => r.success).length
-      const failCount = results.filter(r => !r.success).length
-      
-      // Add broadcast message to history
-      const newMessage: WhatsAppMessage = {
-        id: Date.now().toString(),
-        type: 'general_announcement',
-        recipient: 'broadcast',
-        recipient_name: 'Semua Orang Tua',
-        message,
-        status: successCount > 0 ? 'sent' : 'failed',
-        sent_at: new Date().toISOString()
-      }
-      
-      setMessages(prev => [newMessage, ...prev])
-      setBroadcastMessage('')
-      setBroadcastTitle('')
-      
-      toast.dismiss()
-      toast.success(`Broadcast terkirim ke ${successCount} kontak`)
-      setActiveTab('messages')
-    } catch (error) {
-      toast.dismiss()
-      toast.error('Gagal mengirim broadcast')
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  // Function to send selective messages
-  const handleSendSelectiveMessage = async (selectedIds: string[], message: string) => {
-    setIsLoading(true)
-    toast.loading('Mengirim pesan ke kontak terpilih...')
-    
-    try {
-      const targetStudents = students.filter(student => selectedIds.includes(student.id))
-      
-      const recipients = targetStudents.map(student => ({
-        phone: student.nomor_hp_ortu,
-        message,
-        studentId: student.id
-      }))
-
-      const results = await sendBulkWhatsAppMessages(recipients)
-      const successCount = results.filter(r => r.success).length
-      const failCount = results.filter(r => !r.success).length
-      
-      // Add messages to history
-      const newMessages = results.map((result, index) => ({
-        id: Date.now().toString() + index,
-        type: 'general_announcement' as const,
-        recipient: recipients[index].phone,
-        recipient_name: targetStudents[index].nama_ortu || 'Orang Tua',
-        student_name: targetStudents[index].nama,
-        message,
-        status: result.success ? 'sent' as const : 'failed' as const,
-        sent_at: new Date().toISOString()
-      }))
-      
-      setMessages(prev => [...newMessages, ...prev])
-      setSelectedContacts([])
-      
-      toast.dismiss()
-      toast.success(`Pesan berhasil dikirim ke ${successCount} kontak${failCount > 0 ? `, ${failCount} gagal` : ''}`)
-      setActiveTab('messages')
-    } catch (error) {
-      toast.dismiss()
-      toast.error('Gagal mengirim pesan selektif')
-    } finally {
-      setIsLoading(false)
-    }
-  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -418,6 +245,7 @@ const WhatsAppPage = () => {
               { id: 'selective', label: 'Kirim Selektif', icon: Users },
               { id: 'broadcast', label: 'Broadcast', icon: Bell },
               { id: 'templates', label: 'Template Pesan', icon: Settings },
+              { id: 'test', label: 'Test API', icon: Zap },
               { id: 'settings', label: 'Pengaturan', icon: Settings }
             ].map((tab) => (
               <button
@@ -508,23 +336,7 @@ const WhatsAppPage = () => {
         )}
 
         {activeTab === 'selective' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Kirim Pesan ke Kontak Tertentu</CardTitle>
-              <p className="text-sm text-gray-600">
-                Pilih kontak spesifik yang ingin menerima pesan WhatsApp
-              </p>
-            </CardHeader>
-            <CardContent>
-              <ContactSelector
-                students={students}
-                selectedContacts={selectedContacts}
-                onSelectionChange={setSelectedContacts}
-                onSendMessage={handleSendSelectiveMessage}
-                loading={isLoading}
-              />
-            </CardContent>
-          </Card>
+          <BulkWhatsApp />
         )}
 
         {activeTab === 'templates' && (
@@ -576,76 +388,11 @@ const WhatsAppPage = () => {
         )}
 
         {activeTab === 'broadcast' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Kirim Pesan Broadcast</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="max-w-2xl mx-auto space-y-6">
-                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-                  <div className="flex items-start">
-                    <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 mr-3" />
-                    <div>
-                      <h4 className="font-medium text-blue-900">Broadcast ke Semua Orang Tua</h4>
-                      <p className="text-sm text-blue-700 mt-1">
-                        Pesan akan dikirim ke {students.length} orang tua siswa aktif
-                      </p>
-                    </div>
-                  </div>
-                </div>
+          <BulkWhatsApp />
+        )}
 
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Judul Pengumuman
-                  </label>
-                  <input
-                    type="text"
-                    value={broadcastTitle}
-                    onChange={(e) => setBroadcastTitle(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 mb-3"
-                    placeholder="Contoh: Rapat Orang Tua"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Pesan
-                  </label>
-                  <textarea
-                    rows={8}
-                    value={broadcastMessage}
-                    onChange={(e) => setBroadcastMessage(e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Tulis pesan broadcast di sini..."
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Jadwalkan Pengiriman (Opsional)
-                  </label>
-                  <div className="grid grid-cols-2 gap-3">
-                    <input
-                      type="date"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                    <input
-                      type="time"
-                      className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                </div>
-
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" disabled={isLoading}>Preview</Button>
-                  <Button onClick={handleSendBroadcast} disabled={isLoading}>
-                    <Send className="w-4 h-4 mr-2" />
-                    {isLoading ? 'Mengirim...' : 'Kirim Broadcast'}
-                  </Button>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+        {activeTab === 'test' && (
+          <StarSenderTest />
         )}
 
         {activeTab === 'settings' && (
@@ -683,7 +430,7 @@ const WhatsAppPage = () => {
                     </label>
                     <input
                       type="text"
-                      value="https://starsender.online/api/sendText"
+                      value="https://starsender.online/api"
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
                     />
@@ -708,7 +455,11 @@ const WhatsAppPage = () => {
                   </div>
                 </div>
 
-                <div className="flex justify-end">
+                <div className="flex justify-end space-x-3">
+                  <Button variant="outline" onClick={() => setActiveTab('test')}>
+                    <Zap className="w-4 h-4 mr-2" />
+                    Test API
+                  </Button>
                   <Button>Simpan Pengaturan</Button>
                 </div>
               </div>

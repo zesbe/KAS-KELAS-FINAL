@@ -7,6 +7,51 @@
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
 -- =================================================================
+-- 0. USER AUTHENTICATION SYSTEM
+-- =================================================================
+
+-- Custom users table for application (separate from auth.users)
+CREATE TABLE IF NOT EXISTS public.app_users (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    email VARCHAR(255) UNIQUE NOT NULL,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL, -- In production, use proper hashing
+    full_name VARCHAR(100) NOT NULL,
+    role VARCHAR(20) DEFAULT 'user' CHECK (role IN ('admin', 'bendahara', 'user')),
+    avatar_url TEXT,
+    is_active BOOLEAN DEFAULT true,
+    last_login TIMESTAMP WITH TIME ZONE,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Insert default users
+INSERT INTO public.app_users (email, username, password_hash, full_name, role) VALUES 
+('bendahara@sd-indonesia.sch.id', 'bendahara', 'kaskelas123', 'Ibu Sari Wijaya', 'bendahara'),
+('admin@sd-indonesia.sch.id', 'admin', 'admin123', 'Admin System', 'admin'),
+('guru@sd-indonesia.sch.id', 'guru', 'guru123', 'Pak Ahmad Guru', 'user')
+ON CONFLICT (username) DO NOTHING;
+
+-- User sessions table for login tracking
+CREATE TABLE IF NOT EXISTS public.user_sessions (
+    id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
+    user_id UUID NOT NULL REFERENCES public.app_users(id) ON DELETE CASCADE,
+    session_token VARCHAR(255) UNIQUE NOT NULL,
+    ip_address INET,
+    user_agent TEXT,
+    expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Index untuk optimasi
+CREATE INDEX IF NOT EXISTS idx_app_users_email ON public.app_users(email);
+CREATE INDEX IF NOT EXISTS idx_app_users_username ON public.app_users(username);
+CREATE INDEX IF NOT EXISTS idx_app_users_role ON public.app_users(role);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_user_id ON public.user_sessions(user_id);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_token ON public.user_sessions(session_token);
+CREATE INDEX IF NOT EXISTS idx_user_sessions_expires ON public.user_sessions(expires_at);
+
+-- =================================================================
 -- 1. STUDENTS TABLE - Data Siswa
 -- =================================================================
 CREATE TABLE IF NOT EXISTS public.students (
@@ -99,15 +144,19 @@ ON CONFLICT DO NOTHING;
 CREATE TABLE IF NOT EXISTS public.expenses (
     id UUID DEFAULT uuid_generate_v4() PRIMARY KEY,
     category_id UUID NOT NULL REFERENCES public.expense_categories(id),
+    title VARCHAR(200) NOT NULL,
     deskripsi TEXT NOT NULL,
     amount DECIMAL(10,2) NOT NULL,
     bukti_foto_url TEXT,
+    bukti_foto_public_id TEXT, -- For Cloudinary integration
     tanggal DATE NOT NULL,
+    toko_tempat VARCHAR(100), -- Nama toko/tempat pembelian
+    metode_pembayaran VARCHAR(50) DEFAULT 'cash' CHECK (metode_pembayaran IN ('cash', 'transfer', 'qris', 'debit')),
     status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
-    approved_by VARCHAR(100),
+    approval_notes TEXT,
+    approved_by_user_id UUID REFERENCES public.app_users(id),
     approved_at TIMESTAMP WITH TIME ZONE,
-    notes TEXT,
-    created_by VARCHAR(100) NOT NULL DEFAULT 'admin',
+    created_by_user_id UUID NOT NULL REFERENCES public.app_users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
@@ -116,6 +165,8 @@ CREATE TABLE IF NOT EXISTS public.expenses (
 CREATE INDEX IF NOT EXISTS idx_expenses_category_id ON public.expenses(category_id);
 CREATE INDEX IF NOT EXISTS idx_expenses_tanggal ON public.expenses(tanggal);
 CREATE INDEX IF NOT EXISTS idx_expenses_status ON public.expenses(status);
+CREATE INDEX IF NOT EXISTS idx_expenses_created_by ON public.expenses(created_by_user_id);
+CREATE INDEX IF NOT EXISTS idx_expenses_approved_by ON public.expenses(approved_by_user_id);
 
 -- =================================================================
 -- 6. WHATSAPP_LOGS TABLE - Log Pesan WhatsApp
@@ -197,6 +248,11 @@ END;
 $$ language 'plpgsql';
 
 -- Triggers untuk auto-update timestamp
+DROP TRIGGER IF EXISTS update_app_users_updated_at ON public.app_users;
+CREATE TRIGGER update_app_users_updated_at 
+    BEFORE UPDATE ON public.app_users 
+    FOR EACH ROW EXECUTE FUNCTION update_updated_at_column();
+
 DROP TRIGGER IF EXISTS update_students_updated_at ON public.students;
 CREATE TRIGGER update_students_updated_at 
     BEFORE UPDATE ON public.students 
@@ -217,6 +273,8 @@ CREATE TRIGGER update_expenses_updated_at
 -- =================================================================
 
 -- Enable RLS on all tables
+ALTER TABLE public.app_users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_sessions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.students ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payment_categories ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.payments ENABLE ROW LEVEL SECURITY;
@@ -228,6 +286,8 @@ ALTER TABLE public.settings ENABLE ROW LEVEL SECURITY;
 
 -- Allow all operations for authenticated users (untuk development)
 -- Dalam production, buat policy yang lebih spesifik
+CREATE POLICY "Allow all for authenticated users" ON public.app_users FOR ALL TO authenticated USING (true);
+CREATE POLICY "Allow all for authenticated users" ON public.user_sessions FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow all for authenticated users" ON public.students FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow all for authenticated users" ON public.payment_categories FOR ALL TO authenticated USING (true);
 CREATE POLICY "Allow all for authenticated users" ON public.payments FOR ALL TO authenticated USING (true);
@@ -238,6 +298,8 @@ CREATE POLICY "Allow all for authenticated users" ON public.payment_reminders FO
 CREATE POLICY "Allow all for authenticated users" ON public.settings FOR ALL TO authenticated USING (true);
 
 -- Allow full access for anon users (karena app menggunakan anon key)
+CREATE POLICY "Allow all for anon" ON public.app_users FOR ALL TO anon USING (true);
+CREATE POLICY "Allow all for anon" ON public.user_sessions FOR ALL TO anon USING (true);
 CREATE POLICY "Allow all for anon" ON public.students FOR ALL TO anon USING (true);
 CREATE POLICY "Allow all for anon" ON public.payment_categories FOR ALL TO anon USING (true);
 CREATE POLICY "Allow all for anon" ON public.payments FOR ALL TO anon USING (true);
@@ -280,6 +342,163 @@ INSERT INTO public.students (id, nama, nomor_absen, nomor_hp_ortu, nama_ortu, em
 ('41d0b256-0a07-40e0-9e8d-afb95fab989c', 'Naufal Akbar', 25, '628567890125', 'Benny Wijaya', 'benny.wijaya@email.com', null, true)
 ON CONFLICT (id) DO NOTHING;
 
+-- Insert realistic expense examples for school class fund
+INSERT INTO public.expenses (
+    category_id, 
+    title, 
+    deskripsi, 
+    amount, 
+    tanggal, 
+    toko_tempat, 
+    metode_pembayaran, 
+    status, 
+    created_by_user_id
+) VALUES 
+-- Alat Tulis (Office Supplies)
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Alat Tulis' LIMIT 1),
+    'Kertas A4 dan Spidol Board Marker',
+    'Pembelian 2 rim kertas A4 80gr dan 6 buah spidol board marker berbagai warna untuk keperluan pembelajaran harian dan membuat materi kelas',
+    87500,
+    '2024-12-15',
+    'Toko ATK Gramedia',
+    'transfer',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'bendahara' LIMIT 1)
+),
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Alat Tulis' LIMIT 1),
+    'Pensil, Penghapus, dan Penggaris',
+    'Stok alat tulis cadangan untuk siswa yang lupa membawa: 20 pensil 2B, 15 penghapus, 10 penggaris 30cm',
+    52000,
+    '2025-01-10',
+    'Toko Mandiri Stationery',
+    'cash',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'bendahara' LIMIT 1)
+),
+
+-- Snack & Minuman
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Snack & Minuman' LIMIT 1),
+    'Perayaan Ulang Tahun Siti Nurhaliza',
+    'Kue tart ulang tahun ukuran sedang, minuman kotak, dan permen untuk merayakan ulang tahun Siti bersama teman-teman sekelas',
+    125000,
+    '2024-12-20',
+    'Toko Kue Sari Roti',
+    'qris',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'bendahara' LIMIT 1)
+),
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Snack & Minuman' LIMIT 1),
+    'Snack Kegiatan Belajar Kelompok',
+    'Biskuit, wafer, dan minuman untuk kegiatan belajar kelompok matematika dan bahasa Indonesia',
+    65000,
+    '2025-01-08',
+    'Indomaret',
+    'cash',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'guru' LIMIT 1)
+),
+
+-- Dekorasi Kelas
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Dekorasi Kelas' LIMIT 1),
+    'Poster Edukasi dan Hiasan Dinding',
+    'Poster perkalian, peta Indonesia, alfabet, dan border hiasan untuk mempercantik dan mengedukasi ruang kelas',
+    78000,
+    '2025-01-05',
+    'Toko Pendidikan Cerdas',
+    'cash',
+    'pending',
+    (SELECT id FROM public.app_users WHERE username = 'admin' LIMIT 1)
+),
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Dekorasi Kelas' LIMIT 1),
+    'Gorden dan Tirai Jendela',
+    'Gorden biru muda untuk jendela kelas agar ruangan lebih nyaman dan tidak silau saat belajar',
+    150000,
+    '2024-12-28',
+    'Toko Gorden Indah',
+    'transfer',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'bendahara' LIMIT 1)
+),
+
+-- Hadiah & Reward
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Hadiah & Reward' LIMIT 1),
+    'Hadiah Siswa Ranking 1-3 Semester',
+    'Buku cerita anak, alat tulis premium, dan sertifikat untuk 3 siswa dengan nilai terbaik semester ini',
+    180000,
+    '2024-12-22',
+    'Gramedia',
+    'transfer',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'bendahara' LIMIT 1)
+),
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Hadiah & Reward' LIMIT 1),
+    'Stiker dan Stamp Motivasi',
+    'Stiker bintang, smile, dan good job untuk memberikan reward kepada siswa yang aktif dan berprestasi',
+    35000,
+    '2025-01-12',
+    'Toko ATK Online',
+    'qris',
+    'pending',
+    (SELECT id FROM public.app_users WHERE username = 'guru' LIMIT 1)
+),
+
+-- Administrasi
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Administrasi' LIMIT 1),
+    'Fotocopy Soal Ulangan dan LKS',
+    'Fotocopy soal ulangan tengah semester untuk 25 siswa dan lembar kerja siswa (LKS) matematika dan bahasa Indonesia',
+    45000,
+    '2025-01-15',
+    'Fotocopy Bu Ani',
+    'cash',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'bendahara' LIMIT 1)
+),
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Administrasi' LIMIT 1),
+    'Amplop dan Map Raport',
+    'Amplop coklat untuk surat menyurat dan map plastik untuk menyimpan raport dan dokumen penting siswa',
+    28000,
+    '2024-12-30',
+    'Toko Wijaya',
+    'cash',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'admin' LIMIT 1)
+),
+
+-- Additional realistic expenses
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Alat Tulis' LIMIT 1),
+    'Double Tape dan Lem Stick',
+    'Double tape besar 2 buah dan lem stick 5 buah untuk kegiatan prakarya dan menempel hasil karya siswa',
+    32000,
+    '2025-01-20',
+    'Toko Serba Ada',
+    'cash',
+    'pending',
+    (SELECT id FROM public.app_users WHERE username = 'guru' LIMIT 1)
+),
+(
+    (SELECT id FROM public.expense_categories WHERE name = 'Snack & Minuman' LIMIT 1),
+    'Perayaan Prestasi Lomba Cerdas Cermat',
+    'Pizza dan minuman untuk merayakan juara 2 lomba cerdas cermat tingkat kecamatan yang diraih oleh tim kelas 1A',
+    200000,
+    '2025-01-18',
+    'Pizza Hut',
+    'transfer',
+    'approved',
+    (SELECT id FROM public.app_users WHERE username = 'bendahara' LIMIT 1)
+)
+ON CONFLICT DO NOTHING;
+
 -- =================================================================
 -- SETUP COMPLETE!
 -- =================================================================
@@ -291,6 +510,8 @@ BEGIN
     RAISE NOTICE 'KAS KELAS DATABASE SETUP COMPLETED!';
     RAISE NOTICE '=================================================================';
     RAISE NOTICE 'Tables created:';
+    RAISE NOTICE '✅ app_users (% rows)', (SELECT COUNT(*) FROM public.app_users);
+    RAISE NOTICE '✅ user_sessions (% rows)', (SELECT COUNT(*) FROM public.user_sessions);
     RAISE NOTICE '✅ students (% rows)', (SELECT COUNT(*) FROM public.students);
     RAISE NOTICE '✅ payment_categories (% rows)', (SELECT COUNT(*) FROM public.payment_categories);
     RAISE NOTICE '✅ payments (% rows)', (SELECT COUNT(*) FROM public.payments);
@@ -300,9 +521,15 @@ BEGIN
     RAISE NOTICE '✅ payment_reminders (% rows)', (SELECT COUNT(*) FROM public.payment_reminders);
     RAISE NOTICE '✅ settings (% rows)', (SELECT COUNT(*) FROM public.settings);
     RAISE NOTICE '=================================================================';
+    RAISE NOTICE 'Authentication Users:';
+    RAISE NOTICE '👤 bendahara: kaskelas123 (Ibu Sari Wijaya)';
+    RAISE NOTICE '👤 admin: admin123 (Admin System)';
+    RAISE NOTICE '👤 guru: guru123 (Pak Ahmad Guru)';
+    RAISE NOTICE '=================================================================';
     RAISE NOTICE 'Next steps:';
-    RAISE NOTICE '1. Verify tables in Supabase Dashboard';
-    RAISE NOTICE '2. Test connection from your Next.js app';
-    RAISE NOTICE '3. Start using the KasKelas application!';
+    RAISE NOTICE '1. Run this script in Supabase SQL Editor';
+    RAISE NOTICE '2. Update your Next.js app to use Supabase auth';
+    RAISE NOTICE '3. Test login with the credentials above';
+    RAISE NOTICE '4. Start managing expenses and users!';
     RAISE NOTICE '=================================================================';
 END $$;

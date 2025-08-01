@@ -2,10 +2,11 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
-import { getCurrentUser, isAuthenticated, logout, AUTH_CONFIG, User } from '@/lib/auth'
+import { supabaseAuthService, AppUser } from '@/lib/supabase-auth'
+import toast from 'react-hot-toast'
 
 interface AuthContextType {
-  user: User | null
+  user: AppUser | null
   isLoading: boolean
   logout: () => void
   checkAuth: () => boolean
@@ -26,7 +27,7 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null)
+  const [user, setUser] = useState<AppUser | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const router = useRouter()
   const pathname = usePathname()
@@ -34,41 +35,96 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   // Public routes that don't require authentication
   const publicRoutes = ['/', '/login']
   const isPublicRoute = publicRoutes.includes(pathname)
+  
+  // Auth config
+  const AUTH_CONFIG = {
+    LOGIN_PATH: '/login',
+    DASHBOARD_PATH: '/dashboard'
+  }
 
   useEffect(() => {
     checkAuthStatus()
-  }, [pathname, router])
+  }, [pathname, router]) // checkAuthStatus is defined in the effect, safe to omit
 
-  const checkAuthStatus = () => {
+  const checkAuthStatus = async () => {
     setIsLoading(true)
     
     try {
-      const currentUser = getCurrentUser()
-      setUser(currentUser)
+      // Get session token and user data from localStorage
+      const sessionToken = localStorage.getItem('session_token')
+      const userData = localStorage.getItem('user')
+      
+      if (sessionToken && userData) {
+        try {
+          const user = JSON.parse(userData)
+          // Simple validation - check if session is not too old (24 hours)
+          const sessionParts = sessionToken.split('_')
+          const sessionTime = sessionParts[sessionParts.length - 1]
+          const sessionDate = new Date(parseInt(sessionTime))
+          const now = new Date()
+          const hoursDiff = (now.getTime() - sessionDate.getTime()) / (1000 * 60 * 60)
+          
+          if (hoursDiff < 24) {
+            setUser(user)
+          } else {
+            // Session expired
+            localStorage.removeItem('session_token')
+            localStorage.removeItem('user')
+            setUser(null)
+          }
+        } catch (parseError) {
+          // Invalid user data, clear everything
+          localStorage.removeItem('session_token')
+          localStorage.removeItem('user')
+          setUser(null)
+        }
+      } else {
+        setUser(null)
+      }
 
       // Redirect logic
-      if (!currentUser && !isPublicRoute) {
-        // Not authenticated and trying to access protected route
-        router.push(AUTH_CONFIG.LOGIN_PATH)
-      } else if (currentUser && pathname === '/login') {
-        // Authenticated but on login page
-        router.push(AUTH_CONFIG.DASHBOARD_PATH)
-      }
+      setTimeout(() => {
+        if (!user && !isPublicRoute) {
+          // Not authenticated and trying to access protected route
+          router.push(AUTH_CONFIG.LOGIN_PATH)
+        } else if (user && pathname === '/login') {
+          // Authenticated but on login page
+          router.push(AUTH_CONFIG.DASHBOARD_PATH)
+        }
+      }, 100)
+      
     } catch (error) {
       console.error('Auth check error:', error)
+      toast.error('Terjadi kesalahan saat memverifikasi login')
+      setUser(null)
     } finally {
       setIsLoading(false)
     }
   }
 
-  const handleLogout = () => {
-    logout()
-    setUser(null)
-    router.push(AUTH_CONFIG.LOGIN_PATH)
+  const handleLogout = async () => {
+    try {
+      // Clear localStorage
+      localStorage.removeItem('session_token')
+      localStorage.removeItem('user')
+      setUser(null)
+      
+      toast.success('Berhasil logout')
+      router.push(AUTH_CONFIG.LOGIN_PATH)
+    } catch (error) {
+      console.error('Logout error:', error)
+      // Force logout even if error
+      localStorage.removeItem('session_token')
+      localStorage.removeItem('user')
+      setUser(null)
+      router.push(AUTH_CONFIG.LOGIN_PATH)
+    }
   }
 
   const checkAuth = () => {
-    return isAuthenticated()
+    // Check Supabase session
+    const hasSession = !!localStorage.getItem('session_token')
+    return hasSession || !!user
   }
 
   const value: AuthContextType = {

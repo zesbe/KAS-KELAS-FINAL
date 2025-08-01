@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { BookOpen, Eye, EyeOff, User, Lock } from 'lucide-react'
 import toast from 'react-hot-toast'
+import { supabaseAuthService } from '@/lib/supabase-auth'
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -29,19 +30,27 @@ const LoginPage = () => {
     setIsLoading(true)
 
     try {
-      // Simple authentication - in production, use proper auth service
-      if (formData.username === 'bendahara' && formData.password === 'kaskelas123') {
-        // Set login session
-        localStorage.setItem('isLoggedIn', 'true')
-        localStorage.setItem('userRole', 'bendahara')
-        localStorage.setItem('userName', 'Ibu Sari Wijaya')
+      // Supabase authentication only
+      const { user, error } = await supabaseAuthService.login({
+        username: formData.username,
+        password: formData.password
+      })
+
+      if (user && !error) {
+        // Success - create local session
+        const sessionToken = `session_${user.id}_${Date.now()}`
         
-        toast.success('Login berhasil! Selamat datang di KasKelas')
+        // Store in localStorage only
+        localStorage.setItem('session_token', sessionToken)
+        localStorage.setItem('user', JSON.stringify(user))
+        
+        toast.success(`Login berhasil! Selamat datang ${user.full_name}`)
         router.push('/dashboard')
       } else {
-        toast.error('Username atau password salah!')
+        toast.error(error || 'Username atau password salah!')
       }
     } catch (error) {
+      console.error('Login error:', error)
       toast.error('Terjadi kesalahan saat login')
     } finally {
       setIsLoading(false)
@@ -141,14 +150,6 @@ const LoginPage = () => {
               </Button>
             </form>
 
-            {/* Demo Credentials */}
-            <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">Demo Credentials:</h4>
-              <div className="text-sm text-blue-800 space-y-1">
-                <p><strong>Username:</strong> bendahara</p>
-                <p><strong>Password:</strong> kaskelas123</p>
-              </div>
-            </div>
           </CardContent>
         </Card>
 

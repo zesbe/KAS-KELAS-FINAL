@@ -1,12 +1,29 @@
 import { createClient } from '@supabase/supabase-js'
 
+// Singleton pattern to prevent multiple instances
+let supabaseInstance: any = null
+
 // Client-side Supabase client
 export const createSupabaseClient = () => {
-  return createClient(
+  if (supabaseInstance) return supabaseInstance
+  
+  supabaseInstance = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: false
+      }
+    }
   )
+  
+  return supabaseInstance
 }
+
+// Default client instance
+export const supabase = createSupabaseClient()
 
 // Service role client (for admin operations)
 export const createSupabaseServiceClient = () => {

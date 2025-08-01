@@ -5,6 +5,7 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import ReportGenerator from '@/components/reports/ReportGenerator'
 import { 
   Download, 
   Calendar, 
@@ -19,7 +20,8 @@ import {
   Filter,
   Eye,
   Share,
-  Printer
+  Printer,
+  Wand2
 } from 'lucide-react'
 
 interface FinancialSummary {
@@ -121,7 +123,7 @@ const expenseCategories: ExpenseCategory[] = [
 
 const ReportsPage = () => {
   const [selectedPeriod, setSelectedPeriod] = useState('current_month')
-  const [reportType, setReportType] = useState<'financial' | 'payment' | 'expense' | 'detailed'>('financial')
+  const [reportType, setReportType] = useState<'financial' | 'payment' | 'expense' | 'detailed' | 'generator'>('financial')
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('id-ID', {
@@ -247,12 +249,13 @@ const ReportsPage = () => {
 
         {/* Report Type Tabs */}
         <div className="border-b border-gray-200">
-          <nav className="-mb-px flex space-x-8">
+          <nav className="-mb-px flex space-x-8 overflow-x-auto">
             {[
               { id: 'financial', label: 'Ringkasan Keuangan', icon: BarChart3 },
               { id: 'payment', label: 'Laporan Pembayaran', icon: CreditCard },
               { id: 'expense', label: 'Analisis Pengeluaran', icon: PieChart },
-              { id: 'detailed', label: 'Laporan Detail', icon: FileText }
+              { id: 'detailed', label: 'Laporan Detail', icon: FileText },
+              { id: 'generator', label: 'Template Generator', icon: Wand2 }
             ].map((tab) => (
               <button
                 key={tab.id}
@@ -573,6 +576,58 @@ const ReportsPage = () => {
               </div>
             </CardContent>
           </Card>
+        )}
+
+        {reportType === 'generator' && (
+          <ReportGenerator 
+            reportData={{
+              month: 'Januari',
+              year: '2025',
+              className: 'Kelas 1A',
+              treasurerName: 'Ibu Sari Wijaya',
+              teacherName: 'Pak Ahmad Guru',
+              startBalance: financialSummary.balance - financialSummary.total_income + financialSummary.total_expenses,
+              totalIncome: financialSummary.total_income,
+              totalExpense: financialSummary.total_expenses,
+              endBalance: financialSummary.balance,
+              expenses: [
+                {
+                  id: '1',
+                  title: 'Kertas A4 dan Spidol Board Marker',
+                  deskripsi: 'Pembelian 2 rim kertas A4 80gr dan 6 buah spidol board marker berbagai warna',
+                  amount: 87500,
+                  tanggal: '2024-12-15',
+                  toko_tempat: 'Toko ATK Gramedia',
+                  metode_pembayaran: 'transfer',
+                  status: 'approved',
+                  expense_categories: { id: '1', name: 'Alat Tulis', color: '#EF4444' }
+                },
+                {
+                  id: '2',
+                  title: 'Perayaan Ulang Tahun Siti Nurhaliza',
+                  deskripsi: 'Kue tart ulang tahun ukuran sedang, minuman kotak, dan permen',
+                  amount: 125000,
+                  tanggal: '2024-12-20',
+                  toko_tempat: 'Toko Kue Sari Roti',
+                  metode_pembayaran: 'qris',
+                  status: 'approved',
+                  expense_categories: { id: '2', name: 'Snack & Minuman', color: '#F59E0B' }
+                }
+              ],
+              students: [
+                { id: '1', nama: 'Ahmad Rizki Pratama', nama_ortu: 'Budi Santoso', nomor_absen: 1 },
+                { id: '2', nama: 'Siti Nurhaliza', nama_ortu: 'Sari Dewi', nomor_absen: 2 },
+                { id: '3', nama: 'Muhammad Fajar', nama_ortu: 'Andi Wijaya', nomor_absen: 3 }
+              ],
+              categories: expenseCategories.map(cat => ({ id: cat.category, name: cat.category })),
+              paymentMethods: [
+                { value: 'cash', label: 'Tunai' },
+                { value: 'transfer', label: 'Transfer' },
+                { value: 'qris', label: 'QRIS' }
+              ],
+              pendingExpenses: []
+            }}
+          />
         )}
       </div>
     </DashboardLayout>

@@ -10,7 +10,9 @@ export const AUTH_CONFIG = {
 }
 
 export interface User {
+  username: string
   name: string
+  email?: string
   role: string
   isLoggedIn: boolean
 }
@@ -28,9 +30,15 @@ export const getCurrentUser = (): User | null => {
   const isLoggedIn = isAuthenticated()
   if (!isLoggedIn) return null
 
+  const role = localStorage.getItem(AUTH_CONFIG.STORAGE_KEYS.USER_ROLE) || 'user'
+  const name = localStorage.getItem(AUTH_CONFIG.STORAGE_KEYS.USER_NAME) || 'User'
+  const username = localStorage.getItem('username') || 'unknown'
+
   return {
-    name: localStorage.getItem(AUTH_CONFIG.STORAGE_KEYS.USER_NAME) || 'User',
-    role: localStorage.getItem(AUTH_CONFIG.STORAGE_KEYS.USER_ROLE) || 'user',
+    username,
+    name,
+    email: username + '@demo.com',
+    role,
     isLoggedIn: true
   }
 }
@@ -42,6 +50,7 @@ export const logout = (): void => {
   localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.IS_LOGGED_IN)
   localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_ROLE)
   localStorage.removeItem(AUTH_CONFIG.STORAGE_KEYS.USER_NAME)
+  localStorage.removeItem('username')
   
   // Redirect to login
   window.location.href = AUTH_CONFIG.LOGIN_PATH
@@ -53,7 +62,39 @@ export const loginUser = (username: string, role: string = 'bendahara'): void =>
   
   localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.IS_LOGGED_IN, 'true')
   localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.USER_ROLE, role)
-  localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.USER_NAME, username)
+  localStorage.setItem(AUTH_CONFIG.STORAGE_KEYS.USER_NAME, getUserName(username))
+  localStorage.setItem('username', username)
+}
+
+// Login function for async use
+export const login = async (username: string, password: string): Promise<{ success: boolean, user?: User, error?: string }> => {
+  try {
+    if (validateCredentials(username, password)) {
+      const role = username === 'admin' ? 'admin' : 'bendahara'
+      loginUser(username, role)
+      
+      return {
+        success: true,
+        user: {
+          username,
+          name: getUserName(username),
+          email: username + '@demo.com',
+          role,
+          isLoggedIn: true
+        }
+      }
+    } else {
+      return {
+        success: false,
+        error: 'Username atau password salah'
+      }
+    }
+  } catch (error) {
+    return {
+      success: false,
+      error: 'Terjadi kesalahan saat login'
+    }
+  }
 }
 
 // Validate credentials (simple demo - replace with real auth)
