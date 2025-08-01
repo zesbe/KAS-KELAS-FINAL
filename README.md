@@ -12,13 +12,14 @@
 KasKelas adalah aplikasi web lengkap yang dirancang khusus untuk mengelola uang kas kelas 1 SD dengan sistem yang 100% otomatis. Aplikasi ini mengintegrasikan **Pakasir** untuk pembayaran digital dan **Wapanels** untuk notifikasi WhatsApp otomatis.
 
 ### ✨ **Fitur Utama**
+- 🔐 **Authentication System** - Login secure dengan role-based access
 - 🤖 **100% Otomatis** - Tagihan, reminder, dan konfirmasi otomatis
 - 💳 **Pembayaran Digital** - Integrasi Pakasir (Bank, E-Wallet, QRIS)  
 - 📱 **WhatsApp Otomatis** - Notifikasi langsung ke orang tua
 - 📊 **Dashboard Real-time** - Overview kas dan statistik live
 - 👥 **Manajemen Siswa** - CRUD lengkap dengan bulk operations
 - 📈 **Laporan Transparan** - Export PDF untuk orang tua
-- 🔐 **Keamanan Tinggi** - RLS Supabase + Input validation
+- 🛡️ **Route Protection** - Secured dashboard dengan redirect otomatis
 
 ---
 
@@ -68,6 +69,17 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) untuk melihat aplikasi.
 
+### **5. Login to Dashboard**
+Gunakan kredensial berikut untuk masuk ke dashboard:
+
+**Demo Login:**
+- **Username**: `bendahara`
+- **Password**: `kaskelas123`
+
+**Alternative Login:**
+- **Username**: `admin`  
+- **Password**: `admin123`
+
 ---
 
 ## 🔧 **Configuration**
@@ -88,6 +100,42 @@ PAKASIR_API_KEY=u8e0CphRmRVuNwDyqnfNoeOwHa6UBpLg
 WAPANELS_APPKEY=2c1b9df7-8ae4-4dc7-a50e-e16f78af0509
 WAPANELS_AUTHKEY=9hoO4xHDJjW0BmvGGhvU2s6JiKuN76D7QU1n0JIYQ194VbKXzp
 ```
+
+---
+
+## 🔐 **Authentication System**
+
+### **Secure Login**
+- Client-side authentication dengan localStorage
+- Role-based access control (Bendahara/Admin)
+- Automatic redirect berdasarkan authentication status
+- Session management dengan logout functionality
+
+### **Route Protection**
+```typescript
+// Public routes (accessible tanpa login)
+const publicRoutes = ['/', '/login']
+
+// Protected routes (butuh authentication)  
+const protectedRoutes = ['/dashboard', '/dashboard/*']
+
+// Auto redirect logic:
+// - Unauthenticated + protected route → /login
+// - Authenticated + /login → /dashboard
+```
+
+### **Demo Credentials**
+| Role | Username | Password | Nama Lengkap |
+|------|----------|----------|-------------|
+| Bendahara | `bendahara` | `kaskelas123` | Ibu Sari Wijaya |
+| Admin | `admin` | `admin123` | Admin System |
+
+### **Authentication Flow**
+1. User mengakses aplikasi di `/`
+2. Klik "Masuk Dashboard" → redirect ke `/login`
+3. Input credentials → validate → set localStorage
+4. Redirect ke `/dashboard` dengan user context
+5. User info ditampilkan di sidebar dengan logout option
 
 ---
 
@@ -243,20 +291,26 @@ KAS-KELAS-FINAL/
 ├── 📁 app/                         # Next.js App Router
 │   ├── 📄 layout.tsx               # Root layout
 │   ├── 📄 page.tsx                 # Landing page
-│   └── 📁 dashboard/               # Dashboard routes
+│   ├── 📁 login/                   # Authentication
+│   │   └── 📄 page.tsx             # Login page
+│   └── 📁 dashboard/               # Dashboard routes (Protected)
 │       ├── 📄 page.tsx             # Main dashboard  
 │       ├── 📁 students/            # Student management
 │       └── 📁 payments/            # Payment management
 ├── 📁 components/                  # Reusable components
 │   ├── 📁 ui/                      # Base UI components
 │   ├── 📁 layout/                  # Layout components
+│   ├── 📁 providers/               # Context providers
+│   │   ├── 📄 AuthProvider.tsx     # Authentication context
+│   │   └── 📄 ToastProvider.tsx    # Notification provider
 │   ├── 📁 dashboard/               # Dashboard components
 │   ├── 📁 students/                # Student components
 │   └── 📁 payments/                # Payment components
 └── 📁 lib/                        # Utilities & integrations
+    ├── 📄 auth.ts                  # Authentication utilities
     ├── 📄 supabase.ts              # Database client
     ├── 📄 pakasir.ts               # Payment gateway
-    ├── 📄 wapanels.ts              # WhatsApp gateway
+    ├── 📄 starsender.ts            # WhatsApp gateway
     └── 📄 utils.ts                 # Common utilities
 ```
 
