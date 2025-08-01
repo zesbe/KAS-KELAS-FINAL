@@ -1,4 +1,8 @@
+'use client'
+
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { 
   BookOpen, 
   Smartphone, 
@@ -22,6 +26,18 @@ import {
 const LandingPage = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [currentFeature, setCurrentFeature] = useState(0);
+  const router = useRouter();
+
+  const handleDashboardClick = () => {
+    try {
+      console.log('Navigating to dashboard...');
+      router.push('/dashboard');
+    } catch (error) {
+      console.error('Router navigation failed:', error);
+      // Fallback to window.location
+      window.location.href = '/dashboard';
+    }
+  };
 
   // Auto-rotate features
   useEffect(() => {
@@ -86,7 +102,10 @@ const LandingPage = () => {
               <a href="#fitur" className="text-gray-600 hover:text-blue-600 transition-colors">Fitur</a>
               <a href="#cara-kerja" className="text-gray-600 hover:text-blue-600 transition-colors">Cara Kerja</a>
               <a href="#portal" className="text-gray-600 hover:text-blue-600 transition-colors">Portal Ortu</a>
-              <button className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-6 py-2 rounded-full hover:shadow-lg transition-all duration-300 transform hover:scale-105">
+              <button 
+                onClick={handleDashboardClick}
+                className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-6 py-2 rounded-full hover:shadow-lg transition-all duration-300 transform hover:scale-105 cursor-pointer"
+              >
                 Masuk Dashboard
               </button>
             </div>
@@ -109,7 +128,10 @@ const LandingPage = () => {
                 <a href="#fitur" className="text-gray-600 hover:text-blue-600">Fitur</a>
                 <a href="#cara-kerja" className="text-gray-600 hover:text-blue-600">Cara Kerja</a>
                 <a href="#portal" className="text-gray-600 hover:text-blue-600">Portal Ortu</a>
-                <button className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-6 py-2 rounded-full text-center">
+                <button 
+                  onClick={handleDashboardClick}
+                  className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-6 py-2 rounded-full text-center cursor-pointer"
+                >
                   Masuk Dashboard
                 </button>
               </div>
@@ -143,11 +165,17 @@ const LandingPage = () => {
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4 mb-8">
-                <button className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-8 py-4 rounded-full font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center">
+                <button 
+                  onClick={handleDashboardClick}
+                  className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-8 py-4 rounded-full font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center cursor-pointer"
+                >
                   <Play className="w-5 h-5 mr-2" />
                   Mulai Gratis Sekarang
                 </button>
-                <button className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-full font-semibold hover:border-blue-400 hover:text-blue-600 transition-all duration-300">
+                <button 
+                  onClick={handleDashboardClick}
+                  className="border-2 border-gray-300 text-gray-700 px-8 py-4 rounded-full font-semibold hover:border-blue-400 hover:text-blue-600 transition-all duration-300 cursor-pointer"
+                >
                   Lihat Demo
                 </button>
               </div>
@@ -193,7 +221,10 @@ const LandingPage = () => {
                   </div>
                 </div>
 
-                <button className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-3 rounded-lg font-semibold mt-6 hover:shadow-lg transition-all">
+                <button 
+                  onClick={handleDashboardClick}
+                  className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-3 rounded-lg font-semibold mt-6 hover:shadow-lg transition-all cursor-pointer"
+                >
                   Kirim Reminder WhatsApp
                 </button>
               </div>
@@ -440,7 +471,10 @@ const LandingPage = () => {
                 ))}
               </div>
 
-              <button className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-8 py-4 rounded-full font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center">
+              <button 
+                onClick={handleDashboardClick}
+                className="bg-gradient-to-r from-blue-600 to-green-600 text-white px-8 py-4 rounded-full font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center cursor-pointer"
+              >
                 Coba Portal Orang Tua
                 <ArrowRight className="w-5 h-5 ml-2" />
               </button>
@@ -474,7 +508,10 @@ const LandingPage = () => {
                   </div>
                 </div>
 
-                <button className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-3 rounded-lg font-semibold mt-6">
+                <button 
+                  onClick={handleDashboardClick}
+                  className="w-full bg-gradient-to-r from-blue-600 to-green-600 text-white py-3 rounded-lg font-semibold mt-6 cursor-pointer"
+                >
                   Bayar Sekarang
                 </button>
               </div>
@@ -494,10 +531,16 @@ const LandingPage = () => {
           </p>
           
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <button className="bg-white text-blue-600 px-8 py-4 rounded-full font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105">
+            <button 
+              onClick={handleDashboardClick}
+              className="bg-white text-blue-600 px-8 py-4 rounded-full font-semibold hover:shadow-xl transition-all duration-300 transform hover:scale-105 cursor-pointer"
+            >
               Mulai Gratis Hari Ini
             </button>
-            <button className="border-2 border-white text-white px-8 py-4 rounded-full font-semibold hover:bg-white hover:text-blue-600 transition-all duration-300">
+            <button 
+              onClick={() => window.location.href = 'mailto:support@berbagiakun.com'}
+              className="border-2 border-white text-white px-8 py-4 rounded-full font-semibold hover:bg-white hover:text-blue-600 transition-all duration-300 cursor-pointer"
+            >
               Hubungi Kami
             </button>
           </div>
