@@ -1,10 +1,21 @@
 'use client'
 
-import { createSupabaseClient, Settings, supabaseHelpers } from '@/lib/supabase'
+import { supabase, supabaseHelpers } from '@/lib/supabase'
+
+// Settings interface
+interface Settings {
+  id: string
+  key: string
+  value: string
+  description?: string
+  type: 'text' | 'number' | 'boolean' | 'json'
+  updated_by?: string
+  updated_at: string
+}
 
 // Settings service for all database operations
 export class SettingsService {
-  private supabase = createSupabaseClient()
+  private supabase = supabase
 
   // Get all settings
   async getAllSettings(): Promise<{ data: Settings[] | null; error: any }> {

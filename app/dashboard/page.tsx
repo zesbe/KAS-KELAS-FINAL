@@ -137,7 +137,7 @@ const DashboardPage: React.FC = () => {
       }
 
       // Get unpaid students from Supabase with error handling
-      let unpaidStudents = []
+      let unpaidStudents: any[] = []
       try {
         const { data: unpaidPayments, error: unpaidError } = await supabase
           .from('payments')

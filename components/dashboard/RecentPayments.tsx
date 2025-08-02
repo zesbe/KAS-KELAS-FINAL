@@ -51,15 +51,32 @@ const RecentPayments = () => {
           payment_method,
           completed_at,
           created_at,
-          student:students(nama, kelas),
-          category:payment_categories(name)
+          students!payments_student_id_fkey(nama, kelas),
+          payment_categories!payments_category_id_fkey(name)
         `)
         .order('created_at', { ascending: false })
         .limit(5)
 
       if (error) throw error
 
-      setPayments(data || [])
+      // Transform the data to match the expected format
+      const transformedData = (data || []).map((payment: any) => ({
+        id: payment.id,
+        amount: payment.amount,
+        status: payment.status,
+        payment_method: payment.payment_method,
+        completed_at: payment.completed_at,
+        created_at: payment.created_at,
+        student: {
+          nama: payment.students?.nama || 'Unknown',
+          kelas: payment.students?.kelas || 'Unknown'
+        },
+        category: {
+          name: payment.payment_categories?.name || 'Unknown'
+        }
+      }))
+
+      setPayments(transformedData)
     } catch (error) {
       console.error('Error fetching recent payments:', error)
     } finally {
