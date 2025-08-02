@@ -26,16 +26,28 @@ export interface BulkMessageResult {
   }>
 }
 
+export interface StarSenderCampaign {
+  id?: number
+  device_api_key: string
+  name: string
+  syntax: string
+  welcome_message: string
+  number: string
+}
+
 class StarSenderService {
-  private baseUrl = 'https://starsender.online/api/sendText'
+  private baseUrl = 'https://api.starsender.online/api'
   
-  // Get API key from settings
-  private async getApiKey(): Promise<string> {
+  // Get API keys from settings
+  async getApiKeys(): Promise<{ accountKey: string; deviceKey: string }> {
     const settings = await settingsService.getWhatsAppSettings()
-    return settings.apiKey || '2d8714c0ceb932baf18b44285cb540b294a64871'
+    return {
+      accountKey: settings.apiKey || '', // Account API key for campaigns
+      deviceKey: settings.deviceApiKey || '' // Device API key for sending messages
+    }
   }
 
-  // Format phone number untuk StarSender (harus format 628xxx@s.whatsapp.net)
+  // Format phone number untuk StarSender (format: 628xxx tanpa @s.whatsapp.net)
   private formatPhoneNumber(phone: string): string {
     let cleaned = phone.replace(/\D/g, '')
     
@@ -45,36 +57,55 @@ class StarSenderService {
       cleaned = '62' + cleaned
     }
     
-    return cleaned + '@s.whatsapp.net'
+    return cleaned
   }
 
-  // Send single WhatsApp message
-  async sendMessage(phone: string, message: string): Promise<StarSenderResponse> {
+  // Send single WhatsApp message using the correct API format
+  async sendMessage(phone: string, message: string, delay?: number): Promise<StarSenderResponse> {
     try {
-      const apiKey = await this.getApiKey()
+      const { deviceKey } = await this.getApiKeys()
+      
+      if (!deviceKey) {
+        return {
+          success: false,
+          message: 'Device API key tidak ditemukan. Silakan atur di pengaturan.',
+          error: 'Missing device API key'
+        }
+      }
+
       const formattedPhone = this.formatPhoneNumber(phone)
 
-      console.log('Sending WhatsApp message:', { phone: formattedPhone, message: message.substring(0, 50) + '...' })
+      console.log('Sending WhatsApp message:', { 
+        phone: formattedPhone, 
+        message: message.substring(0, 50) + '...',
+        delay 
+      })
 
-      const url = `${this.baseUrl}?message=${encodeURIComponent(message)}&tujuan=${encodeURIComponent(formattedPhone)}`
+      const payload = {
+        messageType: 'text',
+        to: formattedPhone,
+        body: message,
+        delay: delay || 0
+      }
 
-      const response = await fetch(url, {
+      const response = await fetch(`${this.baseUrl}/send`, {
         method: 'POST',
         headers: {
-          'apikey': apiKey,
+          'Authorization': deviceKey,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(payload)
       })
 
       const data = await response.json()
 
       // StarSender success response check
-      if (data.status === true || data.success === true) {
+      if (data.success === true) {
         console.log('Message sent successfully:', { phone: formattedPhone, response: data })
         return {
           success: true,
-          message: 'Pesan berhasil dikirim',
-          data
+          message: data.message || 'Pesan berhasil dikirim',
+          data: data.data
         }
       } else {
         console.error('StarSender API error:', data)
@@ -89,6 +120,173 @@ class StarSenderService {
       return {
         success: false,
         message: 'Terjadi kesalahan saat mengirim pesan',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  // Send media message
+  async sendMediaMessage(
+    phone: string, 
+    message: string, 
+    fileUrl: string, 
+    delay?: number
+  ): Promise<StarSenderResponse> {
+    try {
+      const { deviceKey } = await this.getApiKeys()
+      
+      if (!deviceKey) {
+        return {
+          success: false,
+          message: 'Device API key tidak ditemukan',
+          error: 'Missing device API key'
+        }
+      }
+
+      const formattedPhone = this.formatPhoneNumber(phone)
+
+      const payload = {
+        messageType: 'media',
+        to: formattedPhone,
+        body: message,
+        file: fileUrl,
+        delay: delay || 0
+      }
+
+      const response = await fetch(`${this.baseUrl}/send`, {
+        method: 'POST',
+        headers: {
+          'Authorization': deviceKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await response.json()
+
+      if (data.success === true) {
+        return {
+          success: true,
+          message: data.message || 'Media berhasil dikirim',
+          data: data.data
+        }
+      } else {
+        return {
+          success: false,
+          message: data.message || 'Gagal mengirim media',
+          error: data.error
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Terjadi kesalahan saat mengirim media',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  // Create campaign
+  async createCampaign(campaign: StarSenderCampaign): Promise<StarSenderResponse> {
+    try {
+      const { accountKey } = await this.getApiKeys()
+      
+      if (!accountKey) {
+        return {
+          success: false,
+          message: 'Account API key tidak ditemukan',
+          error: 'Missing account API key'
+        }
+      }
+
+      const response = await fetch(`${this.baseUrl}/campaigns`, {
+        method: 'POST',
+        headers: {
+          'Authorization': accountKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(campaign)
+      })
+
+      const data = await response.json()
+
+      if (data.success === true) {
+        return {
+          success: true,
+          message: data.message || 'Campaign berhasil dibuat',
+          data: data.data
+        }
+      } else {
+        return {
+          success: false,
+          message: data.message || 'Gagal membuat campaign',
+          error: data.error
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Terjadi kesalahan saat membuat campaign',
+        error: error instanceof Error ? error.message : 'Unknown error'
+      }
+    }
+  }
+
+  // Add campaign member
+  async addCampaignMember(
+    campaignId: number,
+    number: string,
+    syntax: string,
+    welcomeMessage: boolean = true
+  ): Promise<StarSenderResponse> {
+    try {
+      const { accountKey } = await this.getApiKeys()
+      
+      if (!accountKey) {
+        return {
+          success: false,
+          message: 'Account API key tidak ditemukan',
+          error: 'Missing account API key'
+        }
+      }
+
+      const formattedPhone = this.formatPhoneNumber(number)
+
+      const payload = {
+        campaign_id: campaignId,
+        number: formattedPhone,
+        syntax: syntax,
+        welcome_message: welcomeMessage
+      }
+
+      const response = await fetch(`${this.baseUrl}/campaigns/users`, {
+        method: 'POST',
+        headers: {
+          'Authorization': accountKey,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(payload)
+      })
+
+      const data = await response.json()
+
+      if (data.success === true) {
+        return {
+          success: true,
+          message: data.message || 'Anggota campaign berhasil ditambahkan',
+          data: data.data
+        }
+      } else {
+        return {
+          success: false,
+          message: data.message || 'Gagal menambahkan anggota campaign',
+          error: data.error
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        message: 'Terjadi kesalahan saat menambahkan anggota campaign',
         error: error instanceof Error ? error.message : 'Unknown error'
       }
     }
@@ -112,7 +310,9 @@ class StarSenderService {
       const { to, message } = messages[i]
       
       try {
-        const result = await this.sendMessage(to, message)
+        // Calculate delay for each message (in seconds for API)
+        const delaySeconds = Math.floor((i * delayMs) / 1000)
+        const result = await this.sendMessage(to, message, delaySeconds)
         
         results.results.push({
           phone: to,
@@ -126,12 +326,6 @@ class StarSenderService {
         } else {
           results.failed++
           console.log(`❌ Message ${i + 1}/${messages.length} failed to ${to}: ${result.message}`)
-        }
-
-        // Add delay between messages to avoid rate limiting
-        if (i < messages.length - 1) {
-          console.log(`Waiting ${delayMs}ms before next message...`)
-          await new Promise(resolve => setTimeout(resolve, delayMs))
         }
       } catch (error) {
         console.error(`Error sending message ${i + 1} to ${to}:`, error)
@@ -259,27 +453,40 @@ Mohon doa dan dukungannya 🙏
   // Test API connection
   async testConnection(): Promise<StarSenderResponse> {
     try {
-      const apiKey = await this.getApiKey()
+      const { deviceKey } = await this.getApiKeys()
       
-      // Test dengan mengirim pesan kosong untuk validasi API key
-      const testPhone = '628123456789@s.whatsapp.net'
-      const url = `${this.baseUrl}?message=${encodeURIComponent('test')}&tujuan=${encodeURIComponent(testPhone)}`
+      if (!deviceKey) {
+        return {
+          success: false,
+          message: 'Device API key tidak ditemukan. Silakan atur di pengaturan.',
+          error: 'Missing device API key'
+        }
+      }
       
-      const response = await fetch(url, {
+      // Test dengan payload minimal
+      const payload = {
+        messageType: 'text',
+        to: '628123456789', // Dummy number for testing
+        body: 'Test connection',
+        delay: 0
+      }
+      
+      const response = await fetch(`${this.baseUrl}/send`, {
         method: 'POST',
         headers: {
-          'apikey': apiKey,
+          'Authorization': deviceKey,
           'Content-Type': 'application/json'
-        }
+        },
+        body: JSON.stringify(payload)
       })
 
       const data = await response.json()
 
-      // Cek apakah API key valid
-      if (data.message && data.message.includes('apikey')) {
+      // Check response for API key validation
+      if (response.status === 401 || (data.message && data.message.toLowerCase().includes('unauthorized'))) {
         return {
           success: false,
-          message: 'API Key tidak valid',
+          message: 'Device API Key tidak valid',
           error: data.message
         }
       }

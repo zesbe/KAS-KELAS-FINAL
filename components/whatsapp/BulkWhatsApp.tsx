@@ -1,496 +1,512 @@
 'use client'
 
 import React, { useState, useEffect } from 'react'
-import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
+import { Button } from '@/components/ui/Button'
+import { Badge } from '@/components/ui/Badge'
 import { supabase } from '@/lib/supabase'
-import { starSenderService, StarSenderMessage } from '@/lib/starsender-service'
+import { starSenderService } from '@/lib/starsender-service'
 import { 
   Send, 
   Users, 
   MessageCircle, 
-  CheckCircle, 
-  Clock,
+  CheckCircle2, 
+  XCircle,
   AlertCircle,
-  Search,
-  Filter
+  Loader2,
+  FileText,
+  Plus,
+  Megaphone
 } from 'lucide-react'
 import toast from 'react-hot-toast'
 
 interface Student {
   id: string
   nama: string
-  nomor_absen: number
   nomor_hp_ortu: string
   nama_ortu: string
-  email_ortu?: string
-  is_active: boolean
 }
 
 interface MessageTemplate {
   id: string
   name: string
-  template: string
-  type: 'reminder' | 'overdue' | 'info' | 'custom'
+  content: string
+  variables: string[]
 }
 
-const BulkWhatsApp: React.FC = () => {
+interface BulkResult {
+  total: number
+  sent: number
+  failed: number
+  results: Array<{
+    phone: string
+    success: boolean
+    message: string
+  }>
+}
+
+const BulkWhatsApp = () => {
   const [students, setStudents] = useState<Student[]>([])
   const [selectedStudents, setSelectedStudents] = useState<string[]>([])
-  const [searchTerm, setSearchTerm] = useState('')
-  const [filterStatus, setFilterStatus] = useState<'all' | 'selected' | 'unselected'>('all')
-  const [messageTemplate, setMessageTemplate] = useState('')
+  const [message, setMessage] = useState('')
+  const [isSending, setIsSending] = useState(false)
+  const [sendResults, setSendResults] = useState<BulkResult | null>(null)
+  const [templates, setTemplates] = useState<MessageTemplate[]>([])
   const [selectedTemplate, setSelectedTemplate] = useState('')
-  const [customMessage, setCustomMessage] = useState('')
-  const [sending, setSending] = useState(false)
-  const [sentCount, setSentCount] = useState(0)
-  const [loading, setLoading] = useState(true)
+  const [showTemplateForm, setShowTemplateForm] = useState(false)
+  const [newTemplate, setNewTemplate] = useState({ name: '', content: '' })
+  const [broadcastType, setBroadcastType] = useState<'direct' | 'campaign'>('direct')
+  const [campaignName, setCampaignName] = useState('')
 
-  const messageTemplates: MessageTemplate[] = [
-    {
-      id: 'reminder',
-      name: 'Pengingat Pembayaran',
-      template: `🔔 *PENGINGAT KAS KELAS*
-
-Assalamu'alaikum Bapak/Ibu {{NAMA_ORTU}} 🙏
-
-Kami ingatkan bahwa iuran kas kelas atas nama *{{NAMA_SISWA}}* akan jatuh tempo pada {{TANGGAL_JATUH_TEMPO}}.
-
-💰 *Rincian:*
-• Jumlah: *Rp 25.000*
-• Jatuh Tempo: {{TANGGAL_JATUH_TEMPO}}
-
-🏦 *Cara Bayar:*
-• Transfer: 1234567890 (BCA - Ibu Sari)
-• Tunai: Serahkan ke bendahara
-
-Mohon konfirmasi setelah pembayaran ya Bapak/Ibu 📸
-
-Terima kasih 🙏
-*Bendahara Kelas 1A*`,
-      type: 'reminder'
-    },
-    {
-      id: 'overdue',
-      name: 'Tagihan Terlambat',
-      template: `⚠️ *TAGIHAN TERLAMBAT*
-
-Assalamu'alaikum Bapak/Ibu {{NAMA_ORTU}} 🙏
-
-Iuran kas kelas atas nama *{{NAMA_SISWA}}* sudah melewati jatuh tempo.
-
-💰 *Jumlah:* Rp 25.000
-📅 *Status:* TERLAMBAT
-
-Mohon segera melakukan pembayaran ya Bapak/Ibu 🙏
-Jika ada kendala, silakan hubungi kami.
-
-*Bendahara Kelas 1A*`,
-      type: 'overdue'
-    },
-    {
-      id: 'info',
-      name: 'Informasi Kegiatan',
-      template: `📢 *INFO KEGIATAN KELAS*
-
-Assalamu'alaikum Bapak/Ibu {{NAMA_ORTU}} 🙏
-
-Kegiatan kelas akan dilaksanakan:
-📅 Tanggal: {{TANGGAL_KEGIATAN}}
-🕐 Waktu: {{WAKTU_KEGIATAN}}
-📍 Tempat: {{TEMPAT_KEGIATAN}}
-
-Mohon doa dan dukungannya 🙏
-
-*Bendahara Kelas 1A*`,
-      type: 'info'
-    },
-    {
-      id: 'custom',
-      name: 'Pesan Kustom',
-      template: '',
-      type: 'custom'
-    }
-  ]
-
-  // Load students from Supabase
   useEffect(() => {
-    loadStudents()
+    fetchStudents()
+    fetchTemplates()
   }, [])
 
-  const loadStudents = async () => {
+  const fetchStudents = async () => {
     try {
-      setLoading(true)
       const { data, error } = await supabase
         .from('students')
         .select('*')
         .eq('is_active', true)
-        .order('nomor_absen')
+        .order('nama')
 
-      if (error) {
-        console.error('Error loading students:', error)
-        toast.error('Gagal memuat data siswa')
-        return
-      }
-
+      if (error) throw error
       setStudents(data || [])
     } catch (error) {
-      console.error('Error loading students:', error)
-      toast.error('Terjadi kesalahan saat memuat data siswa')
-    } finally {
-      setLoading(false)
+      console.error('Error fetching students:', error)
+      toast.error('Gagal memuat data siswa')
     }
   }
 
-  // Filter students based on search and filter
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = student.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.nama_ortu.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         student.nomor_hp_ortu.includes(searchTerm)
-    
-    const matchesFilter = filterStatus === 'all' ||
-                         (filterStatus === 'selected' && selectedStudents.includes(student.id)) ||
-                         (filterStatus === 'unselected' && !selectedStudents.includes(student.id))
-    
-    return matchesSearch && matchesFilter
-  })
+  const fetchTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('message_templates')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
 
-  const toggleStudent = (studentId: string) => {
-    setSelectedStudents(prev => 
-      prev.includes(studentId)
-        ? prev.filter(id => id !== studentId)
-        : [...prev, studentId]
-    )
+      if (error) throw error
+      setTemplates(data || [])
+    } catch (error) {
+      console.error('Error fetching templates:', error)
+    }
   }
 
-  const selectAll = () => {
-    setSelectedStudents(filteredStudents.map(s => s.id))
+  const handleSelectAll = () => {
+    if (selectedStudents.length === students.length) {
+      setSelectedStudents([])
+    } else {
+      setSelectedStudents(students.map(s => s.id))
+    }
   }
 
-  const clearAll = () => {
-    setSelectedStudents([])
-  }
-
-  const handleTemplateChange = (templateId: string) => {
-    setSelectedTemplate(templateId)
-    const template = messageTemplates.find(t => t.id === templateId)
-    if (template) {
-      if (template.type === 'custom') {
-        setMessageTemplate('')
+  const handleSelectStudent = (studentId: string) => {
+    setSelectedStudents(prev => {
+      if (prev.includes(studentId)) {
+        return prev.filter(id => id !== studentId)
       } else {
-        setMessageTemplate(template.template)
+        return [...prev, studentId]
       }
+    })
+  }
+
+  const handleTemplateSelect = (templateId: string) => {
+    const template = templates.find(t => t.id === templateId)
+    if (template) {
+      setMessage(template.content)
+      setSelectedTemplate(templateId)
     }
   }
 
-  const generatePersonalizedMessage = (student: Student, template: string): string => {
-    const tomorrow = new Date()
-    tomorrow.setDate(tomorrow.getDate() + 1)
-    
-    return template
-      .replace(/{{NAMA_ORTU}}/g, student.nama_ortu)
-      .replace(/{{NAMA_SISWA}}/g, student.nama)
-      .replace(/{{TANGGAL_JATUH_TEMPO}}/g, tomorrow.toLocaleDateString('id-ID'))
-      .replace(/{{TANGGAL_KEGIATAN}}/g, 'Akan diinformasikan lebih lanjut')
-      .replace(/{{WAKTU_KEGIATAN}}/g, 'Akan diinformasikan lebih lanjut')
-      .replace(/{{TEMPAT_KEGIATAN}}/g, 'Ruang Kelas 1A')
-  }
-
-  const sendBulkMessages = async () => {
-    if (selectedStudents.length === 0) {
-      toast.error('Pilih minimal 1 siswa')
+  const saveTemplate = async () => {
+    if (!newTemplate.name || !newTemplate.content) {
+      toast.error('Nama dan isi template harus diisi')
       return
     }
 
-    const finalTemplate = selectedTemplate === 'custom' ? customMessage : messageTemplate
+    try {
+      const { error } = await supabase
+        .from('message_templates')
+        .insert({
+          name: newTemplate.name,
+          content: newTemplate.content,
+          variables: [],
+          is_active: true
+        })
 
-    if (!finalTemplate.trim()) {
+      if (error) throw error
+
+      toast.success('Template berhasil disimpan')
+      setNewTemplate({ name: '', content: '' })
+      setShowTemplateForm(false)
+      fetchTemplates()
+    } catch (error) {
+      console.error('Error saving template:', error)
+      toast.error('Gagal menyimpan template')
+    }
+  }
+
+  const handleSendBroadcast = async () => {
+    if (selectedStudents.length === 0) {
+      toast.error('Pilih minimal satu siswa')
+      return
+    }
+
+    if (!message.trim()) {
       toast.error('Pesan tidak boleh kosong')
       return
     }
 
-    setSending(true)
-    setSentCount(0)
+    if (broadcastType === 'campaign' && !campaignName.trim()) {
+      toast.error('Nama campaign harus diisi')
+      return
+    }
+
+    setIsSending(true)
+    setSendResults(null)
 
     try {
-      // Prepare messages for StarSender API
-      const messages: StarSenderMessage[] = selectedStudents
-        .map(studentId => {
-          const student = students.find(s => s.id === studentId)
-          if (!student) return null
-          
-          const personalizedMessage = generatePersonalizedMessage(student, finalTemplate)
-          return {
-            to: student.nomor_hp_ortu,
-            message: personalizedMessage
-          }
-        })
-        .filter(Boolean) as StarSenderMessage[]
-
-      console.log(`Preparing to send ${messages.length} WhatsApp messages via StarSender API`)
-      toast(`Memulai pengiriman ${messages.length} pesan WhatsApp...`, { icon: 'ℹ️' })
-
-      // Send via StarSender API with progress tracking
-      const result = await starSenderService.sendBulkMessages(messages, 2000)
+      const selectedStudentData = students.filter(s => selectedStudents.includes(s.id))
       
-      // Update sent count as messages are processed
-      setSentCount(result.sent)
+      if (broadcastType === 'campaign') {
+        // Create campaign first
+        const { deviceKey } = await starSenderService.getApiKeys()
+        const campaignData = {
+          device_api_key: deviceKey,
+          name: campaignName,
+          syntax: 'Broadcast',
+          welcome_message: message,
+          number: selectedStudentData[0]?.nomor_hp_ortu || '628123456789'
+        }
 
-      if (result.sent > 0) {
-        toast.success(`✅ Berhasil mengirim ${result.sent} dari ${result.total} pesan WhatsApp`)
-      }
-      
-      if (result.failed > 0) {
-        toast.error(`❌ ${result.failed} pesan gagal dikirim`)
+        const campaignResult = await starSenderService.createCampaign(campaignData)
         
-        // Log failed messages for debugging
-        const failedMessages = result.results.filter(r => !r.success)
-        console.error('Failed messages:', failedMessages)
-      }
+        if (!campaignResult.success) {
+          throw new Error(campaignResult.message)
+        }
 
-      // Show detailed results
-      if (result.total > 5) {
-        // For bulk messages, show summary
-        toast(`📊 Ringkasan: ${result.sent} berhasil, ${result.failed} gagal dari ${result.total} total`, { icon: 'ℹ️' })
-      } else {
-        // For small batches, show individual results
-        result.results.forEach((r, index) => {
-          const student = students.find(s => s.nomor_hp_ortu === r.phone)
-          const studentName = student ? student.nama : r.phone
-          
-          if (r.success) {
-            toast.success(`✅ ${studentName}: Pesan terkirim`)
-          } else {
-            toast.error(`❌ ${studentName}: ${r.message}`)
-          }
+        const campaignId = campaignResult.data?.id
+
+        // Add all selected students to campaign
+        for (const student of selectedStudentData) {
+          await starSenderService.addCampaignMember(
+            campaignId,
+            student.nomor_hp_ortu,
+            'Broadcast',
+            true
+          )
+        }
+
+        toast.success(`Campaign "${campaignName}" berhasil dibuat dengan ${selectedStudentData.length} anggota`)
+        
+        // Reset form
+        setSelectedStudents([])
+        setMessage('')
+        setCampaignName('')
+        setSendResults({
+          total: selectedStudentData.length,
+          sent: selectedStudentData.length,
+          failed: 0,
+          results: selectedStudentData.map(s => ({
+            phone: s.nomor_hp_ortu,
+            success: true,
+            message: 'Ditambahkan ke campaign'
+          }))
         })
+      } else {
+        // Direct broadcast
+        const messages = selectedStudentData.map(student => ({
+          to: student.nomor_hp_ortu,
+          message: message.replace('{nama_siswa}', student.nama)
+            .replace('{nama_ortu}', student.nama_ortu || 'Bapak/Ibu')
+        }))
+
+        const results = await starSenderService.sendBulkMessages(messages, 2000)
+        setSendResults(results)
+
+        // Log to database
+        for (let i = 0; i < results.results.length; i++) {
+          const result = results.results[i]
+          const student = selectedStudentData[i]
+          
+          await supabase.from('whatsapp_messages').insert({
+            student_id: student.id,
+            message_type: 'broadcast',
+            message_content: messages[i].message,
+            status: result.success ? 'sent' : 'failed',
+            error_message: result.success ? null : result.message,
+            sent_at: new Date().toISOString()
+          })
+        }
+
+        if (results.sent > 0) {
+          toast.success(`Berhasil mengirim ${results.sent} dari ${results.total} pesan`)
+        }
+        if (results.failed > 0) {
+          toast.error(`Gagal mengirim ${results.failed} pesan`)
+        }
       }
-
     } catch (error) {
-      console.error('Error sending bulk messages:', error)
-      toast.error('Terjadi kesalahan saat mengirim pesan via StarSender API')
+      console.error('Error sending broadcast:', error)
+      toast.error('Terjadi kesalahan saat mengirim broadcast')
     } finally {
-      setSending(false)
-      setSentCount(0)
+      setIsSending(false)
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Memuat data siswa...</p>
-        </div>
-      </div>
-    )
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold text-gray-900">Broadcast WhatsApp</h2>
-          <p className="text-gray-600">Kirim pesan ke multiple orang tua siswa</p>
-        </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-sm text-gray-500">
-            {selectedStudents.length} dari {students.length} dipilih
-          </span>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Student Selection */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <Users className="w-5 h-5 mr-2" />
-                Pilih Penerima
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Search and Filter */}
-              <div className="flex gap-2 mb-4">
-                <div className="flex-1 relative">
-                  <Search className="w-4 h-4 absolute left-3 top-3 text-gray-400" />
-                  <input
-                    type="text"
-                    placeholder="Cari nama siswa/orang tua/nomor HP..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <select
-                  value={filterStatus}
-                  onChange={(e) => setFilterStatus(e.target.value as any)}
-                  className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="all">Semua</option>
-                  <option value="selected">Dipilih</option>
-                  <option value="unselected">Belum Dipilih</option>
-                </select>
-              </div>
-
-              {/* Bulk Actions */}
-              <div className="flex gap-2 mb-4">
-                <Button variant="outline" size="sm" onClick={selectAll}>
-                  Pilih Semua ({filteredStudents.length})
-                </Button>
-                <Button variant="outline" size="sm" onClick={clearAll}>
-                  Hapus Semua
-                </Button>
-              </div>
-
-              {/* Student List */}
-              <div className="max-h-96 overflow-y-auto space-y-2">
-                {filteredStudents.map((student) => (
-                  <div
-                    key={student.id}
-                    className={`flex items-center p-3 border rounded-lg cursor-pointer transition-colors ${
-                      selectedStudents.includes(student.id)
-                        ? 'border-green-500 bg-green-50'
-                        : 'border-gray-200 hover:border-gray-300'
-                    }`}
-                    onClick={() => toggleStudent(student.id)}
-                  >
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between">
-                        <p className="font-medium text-gray-900">
-                          {student.nomor_absen}. {student.nama}
-                        </p>
-                        {selectedStudents.includes(student.id) && (
-                          <CheckCircle className="w-5 h-5 text-green-600" />
-                        )}
-                      </div>
-                      <p className="text-sm text-gray-600">
-                        Ortu: {student.nama_ortu}
-                      </p>
-                      <p className="text-sm text-gray-500">
-                        HP: {student.nomor_hp_ortu}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {filteredStudents.length === 0 && (
-                <div className="text-center py-8 text-gray-500">
-                  <Users className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>Tidak ada siswa yang sesuai dengan filter</p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Message Template */}
-        <div className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center">
-                <MessageCircle className="w-5 h-5 mr-2" />
-                Template Pesan
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {/* Template Selection */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Pilih Template
-                </label>
-                <select
-                  value={selectedTemplate}
-                  onChange={(e) => handleTemplateChange(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="">Pilih template pesan...</option>
-                  {messageTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              {/* Message Content */}
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  {selectedTemplate === 'custom' ? 'Pesan Kustom' : 'Preview Pesan'}
-                </label>
-                <textarea
-                  value={selectedTemplate === 'custom' ? customMessage : messageTemplate}
-                  onChange={(e) => {
-                    if (selectedTemplate === 'custom') {
-                      setCustomMessage(e.target.value)
-                    } else {
-                      setMessageTemplate(e.target.value)
-                    }
-                  }}
-                  placeholder={selectedTemplate === 'custom' ? 'Tulis pesan kustom...' : 'Pilih template terlebih dahulu'}
-                  rows={12}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 font-mono text-sm"
-                />
-              </div>
-
-              {/* Variables Help */}
-              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
-                <h4 className="text-sm font-medium text-blue-900 mb-2">💡 Variabel Otomatis:</h4>
-                <div className="text-xs text-blue-800 space-y-1">
-                  <p>• <code>{'{{NAMA_ORTU}}'}</code> → Nama orang tua</p>
-                  <p>• <code>{'{{NAMA_SISWA}}'}</code> → Nama siswa</p>
-                  <p>• <code>{'{{TANGGAL_JATUH_TEMPO}}'}</code> → Tanggal jatuh tempo</p>
-                </div>
-              </div>
-
-              {/* Send Button */}
-              <Button
-                onClick={sendBulkMessages}
-                disabled={sending || selectedStudents.length === 0 || (!messageTemplate.trim() && !customMessage.trim())}
-                className="w-full bg-green-600 hover:bg-green-700"
-                loading={sending}
-              >
-                <Send className="w-4 h-4 mr-2" />
-                {sending 
-                  ? `Mengirim... ${sentCount}/${selectedStudents.length}`
-                  : `Kirim ke ${selectedStudents.length} Penerima`
-                }
-              </Button>
-
-              {sending && (
-                <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                  <div className="flex items-center text-yellow-800">
-                    <Clock className="w-4 h-4 mr-2" />
-                    <span className="text-sm">
-                      Mengirim pesan via StarSender API dengan delay 2 detik antar pesan
-                    </span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      </div>
-
-      {/* Instructions */}
+      {/* Broadcast Type Selection */}
       <Card>
-        <CardContent className="p-4">
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <h4 className="font-medium text-blue-900 mb-2">📱 Cara Kerja Broadcast WhatsApp:</h4>
-            <ul className="text-sm text-blue-800 space-y-1">
-              <li>1. Pilih siswa yang akan menerima pesan</li>
-              <li>2. Pilih template pesan atau buat pesan kustom</li>
-              <li>3. Klik "Kirim" - sistem akan mengirim via StarSender API</li>
-              <li>4. Pesan akan terpersonalisasi otomatis (nama siswa, orang tua, dll)</li>
-              <li>5. Ada delay 2 detik antar pesan untuk menghindari rate limiting</li>
-              <li>6. Status pengiriman akan ditampilkan secara real-time</li>
-            </ul>
+        <CardHeader>
+          <CardTitle className="flex items-center">
+            <Megaphone className="w-5 h-5 mr-2" />
+            Tipe Broadcast
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex space-x-4">
+            <label className="flex items-center">
+              <input
+                type="radio"
+                value="direct"
+                checked={broadcastType === 'direct'}
+                onChange={(e) => setBroadcastType(e.target.value as 'direct' | 'campaign')}
+                className="mr-2"
+              />
+              <span>Kirim Langsung</span>
+            </label>
+            <label className="flex items-center">
+              <input
+                type="radio"
+                value="campaign"
+                checked={broadcastType === 'campaign'}
+                onChange={(e) => setBroadcastType(e.target.value as 'direct' | 'campaign')}
+                className="mr-2"
+              />
+              <span>Buat Campaign</span>
+            </label>
+          </div>
+          {broadcastType === 'campaign' && (
+            <div className="mt-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nama Campaign
+              </label>
+              <input
+                type="text"
+                value={campaignName}
+                onChange={(e) => setCampaignName(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                placeholder="Contoh: Info Kegiatan Kelas"
+              />
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Message Compose */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center">
+              <MessageCircle className="w-5 h-5 mr-2" />
+              Tulis Pesan
+            </div>
+            <div className="flex items-center space-x-2">
+              <select
+                value={selectedTemplate}
+                onChange={(e) => handleTemplateSelect(e.target.value)}
+                className="px-3 py-1 border border-gray-300 rounded-lg text-sm"
+              >
+                <option value="">Pilih Template</option>
+                {templates.map(template => (
+                  <option key={template.id} value={template.id}>
+                    {template.name}
+                  </option>
+                ))}
+              </select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowTemplateForm(!showTemplateForm)}
+              >
+                <Plus className="w-4 h-4" />
+              </Button>
+            </div>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {showTemplateForm && (
+            <div className="p-4 border border-gray-200 rounded-lg space-y-3">
+              <input
+                type="text"
+                placeholder="Nama template"
+                value={newTemplate.name}
+                onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+              />
+              <textarea
+                placeholder="Isi template"
+                value={newTemplate.content}
+                onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
+                className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                rows={3}
+              />
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setShowTemplateForm(false)
+                    setNewTemplate({ name: '', content: '' })
+                  }}
+                >
+                  Batal
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={saveTemplate}
+                >
+                  Simpan
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          <div>
+            <textarea
+              value={message}
+              onChange={(e) => setMessage(e.target.value)}
+              placeholder="Ketik pesan Anda di sini...
+
+Variabel yang tersedia:
+{nama_siswa} - Nama siswa
+{nama_ortu} - Nama orang tua"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              rows={6}
+            />
+            <div className="mt-2 text-sm text-gray-500">
+              {message.length} karakter
+            </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Student Selection */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center justify-between">
+            <div className="flex items-center">
+              <Users className="w-5 h-5 mr-2" />
+              Pilih Penerima ({selectedStudents.length}/{students.length})
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSelectAll}
+            >
+              {selectedStudents.length === students.length ? 'Batal Pilih Semua' : 'Pilih Semua'}
+            </Button>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="max-h-64 overflow-y-auto space-y-2">
+            {students.map(student => (
+              <label
+                key={student.id}
+                className="flex items-center p-2 hover:bg-gray-50 rounded cursor-pointer"
+              >
+                <input
+                  type="checkbox"
+                  checked={selectedStudents.includes(student.id)}
+                  onChange={() => handleSelectStudent(student.id)}
+                  className="mr-3"
+                />
+                <div className="flex-1">
+                  <div className="font-medium">{student.nama}</div>
+                  <div className="text-sm text-gray-500">
+                    {student.nama_ortu || 'Orang tua'} - {student.nomor_hp_ortu}
+                  </div>
+                </div>
+              </label>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Send Button */}
+      <div className="flex justify-end">
+        <Button
+          variant="primary"
+          onClick={handleSendBroadcast}
+          disabled={isSending || selectedStudents.length === 0 || !message.trim()}
+          className="flex items-center"
+        >
+          {isSending ? (
+            <>
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              Mengirim...
+            </>
+          ) : (
+            <>
+              <Send className="w-4 h-4 mr-2" />
+              {broadcastType === 'campaign' ? 'Buat Campaign' : 'Kirim Broadcast'}
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Results */}
+      {sendResults && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center">
+              <FileText className="w-5 h-5 mr-2" />
+              Hasil Pengiriman
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-3 gap-4 mb-4">
+              <div className="text-center">
+                <div className="text-2xl font-bold">{sendResults.total}</div>
+                <div className="text-sm text-gray-500">Total</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-green-600">{sendResults.sent}</div>
+                <div className="text-sm text-gray-500">Berhasil</div>
+              </div>
+              <div className="text-center">
+                <div className="text-2xl font-bold text-red-600">{sendResults.failed}</div>
+                <div className="text-sm text-gray-500">Gagal</div>
+              </div>
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-2">
+              {sendResults.results.map((result, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between p-2 border border-gray-200 rounded"
+                >
+                  <div className="flex items-center">
+                    {result.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-green-500 mr-2" />
+                    ) : (
+                      <XCircle className="w-4 h-4 text-red-500 mr-2" />
+                    )}
+                    <span className="text-sm">{result.phone}</span>
+                  </div>
+                  <Badge variant={result.success ? "success" : "danger"}>
+                    {result.message}
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

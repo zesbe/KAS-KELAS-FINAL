@@ -313,16 +313,39 @@ export const supabaseHelpers = {
   },
 
   async updateSetting(supabase: any, key: string, value: string, updatedBy?: string) {
-    return supabase
+    // First check if setting exists
+    const { data: existing } = await supabase
       .from('settings')
-      .update({
-        value,
-        updated_by: updatedBy,
-        updated_at: new Date().toISOString()
-      })
+      .select('id')
       .eq('key', key)
-      .select()
       .single()
+    
+    if (existing) {
+      // Update existing setting
+      return supabase
+        .from('settings')
+        .update({
+          value,
+          updated_by: updatedBy,
+          updated_at: new Date().toISOString()
+        })
+        .eq('key', key)
+        .select()
+        .single()
+    } else {
+      // Create new setting
+      return supabase
+        .from('settings')
+        .insert({
+          key,
+          value,
+          updated_by: updatedBy,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single()
+    }
   },
 
   // Dashboard statistics

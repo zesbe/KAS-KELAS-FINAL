@@ -58,8 +58,8 @@ const SettingsPage = () => {
   const [integrationSettings, setIntegrationSettings] = useState({
     pakasir_api_key: '',
     pakasir_slug: '',
-    wapanels_app_key: '',
-    wapanels_auth_key: ''
+    starsender_account_key: '',
+    starsender_device_key: ''
   })
 
   const [notificationSettings, setNotificationSettings] = useState({
@@ -106,8 +106,8 @@ const SettingsPage = () => {
         setIntegrationSettings({
           pakasir_api_key: settingsData.pakasir_api_key || '',
           pakasir_slug: settingsData.pakasir_slug || '',
-          wapanels_app_key: settingsData.wapanels_app_key || '',
-          wapanels_auth_key: settingsData.wapanels_auth_key || ''
+          starsender_account_key: settingsData.starsender_account_key || '',
+          starsender_device_key: settingsData.starsender_device_key || ''
         })
 
         // Notification settings
@@ -156,11 +156,14 @@ const SettingsPage = () => {
           break
       }
       
+      console.log('Saving settings:', { section, updates })
+      
       const { error } = await settingsService.bulkUpdateSettings(updates, user?.id)
       
       if (error) throw error
       
       toast.success('Pengaturan berhasil disimpan')
+      await loadSettings() // Reload settings after save
     } catch (error) {
       console.error('Error saving settings:', error)
       toast.error('Gagal menyimpan pengaturan')
@@ -545,14 +548,15 @@ const SettingsPage = () => {
                 <CardContent className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
-                      API Key
+                      Account API Key
                     </label>
                     <div className="relative">
                       <input
                         type={showApiKeys ? "text" : "password"}
-                        value={integrationSettings.wapanels_app_key}
-                        onChange={(e) => handleIntegrationSettingsChange('wapanels_app_key', e.target.value)}
+                        value={integrationSettings.starsender_account_key}
+                        onChange={(e) => handleIntegrationSettingsChange('starsender_account_key', e.target.value)}
                         className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Account API key dari menu profile"
                       />
                       <button
                         type="button"
@@ -562,6 +566,33 @@ const SettingsPage = () => {
                         {showApiKeys ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
                       </button>
                     </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Dapatkan dari menu profile di StarSender
+                    </p>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Device API Key
+                    </label>
+                    <div className="relative">
+                      <input
+                        type={showApiKeys ? "text" : "password"}
+                        value={integrationSettings.starsender_device_key}
+                        onChange={(e) => handleIntegrationSettingsChange('starsender_device_key', e.target.value)}
+                        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        placeholder="Device API key dari menu device"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowApiKeys(!showApiKeys)}
+                        className="absolute inset-y-0 right-0 pr-3 flex items-center"
+                      >
+                        {showApiKeys ? <EyeOff className="w-4 h-4 text-gray-400" /> : <Eye className="w-4 h-4 text-gray-400" />}
+                      </button>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      Dapatkan dari menu device di StarSender
+                    </p>
                   </div>
                   <div>
                     <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -569,7 +600,7 @@ const SettingsPage = () => {
                     </label>
                     <input
                       type="text"
-                      value="https://starsender.online/api/sendText"
+                      value="https://api.starsender.online/api"
                       readOnly
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
                     />

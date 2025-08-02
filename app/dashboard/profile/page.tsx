@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -73,15 +73,7 @@ const ProfilePage = () => {
     confirmPassword: ''
   })
 
-  useEffect(() => {
-    if (user) {
-      fetchProfile()
-      fetchActivities()
-      fetchSettings()
-    }
-  }, [user])
-
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('users')
@@ -98,9 +90,9 @@ const ProfilePage = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [user?.id])
 
-  const fetchActivities = async () => {
+  const fetchActivities = useCallback(async () => {
     try {
       // Fetch recent activities from various tables
       const [payments, students, expenses] = await Promise.all([
@@ -174,9 +166,9 @@ const ProfilePage = () => {
     } catch (error) {
       console.error('Error fetching activities:', error)
     }
-  }
+  }, [user?.id])
 
-  const fetchSettings = async () => {
+  const fetchSettings = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('settings')
@@ -198,7 +190,15 @@ const ProfilePage = () => {
     } catch (error) {
       console.error('Error fetching settings:', error)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    if (user) {
+      fetchProfile()
+      fetchActivities()
+      fetchSettings()
+    }
+  }, [user, fetchProfile, fetchActivities, fetchSettings])
 
   const updateSettings = async () => {
     if (profile?.role !== 'bendahara' && profile?.role !== 'admin') {
