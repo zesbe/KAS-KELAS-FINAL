@@ -24,7 +24,8 @@ import {
   ChevronDown,
   Wallet,
   Send,
-  TrendingUp
+  TrendingUp,
+  Clock
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -45,6 +46,12 @@ const navigation: NavigationItem[] = [
     href: '/dashboard',
     icon: Home,
     description: 'Overview dan statistik kas'
+  },
+  {
+    name: 'Aktivitas',
+    href: '/dashboard/activities',
+    icon: Clock,
+    description: 'Riwayat aktivitas kas'
   },
   {
     name: 'Siswa',
@@ -94,10 +101,12 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
   const [currentBalance, setCurrentBalance] = useState(0)
+  const [notificationOpen, setNotificationOpen] = useState(false)
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
   const navRef = React.useRef<HTMLElement>(null)
+  const notificationRef = React.useRef<HTMLDivElement>(null)
 
   // Load current balance
   useEffect(() => {
@@ -130,6 +139,32 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
       }
     }
   }, [pathname])
+
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (notificationRef.current && !notificationRef.current.contains(event.target as Node)) {
+        setNotificationOpen(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  const handleNotificationClick = () => {
+    setNotificationOpen(!notificationOpen)
+  }
+
+  const handleKirimWhatsApp = () => {
+    router.push('/dashboard/whatsapp')
+  }
+
+  const handleBuatTagihan = () => {
+    router.push('/dashboard/broadcast-tagihan')
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -289,18 +324,44 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
             <div className="flex items-center space-x-4">
               {/* Notifications */}
-              <button className="relative p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100">
-                <Bell className="w-6 h-6" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
-              </button>
+              <div className="relative" ref={notificationRef}>
+                <button 
+                  onClick={handleNotificationClick}
+                  className="relative p-2 text-gray-400 hover:text-gray-600 rounded-full hover:bg-gray-100"
+                >
+                  <Bell className="w-6 h-6" />
+                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+                </button>
+                
+                {/* Notification dropdown */}
+                {notificationOpen && (
+                  <div className="absolute right-0 mt-2 w-80 bg-white border border-gray-200 rounded-lg shadow-lg z-50">
+                    <div className="p-4 border-b border-gray-200">
+                      <h3 className="text-sm font-semibold text-gray-900">Notifikasi</h3>
+                    </div>
+                    <div className="max-h-96 overflow-y-auto">
+                      <div className="p-4 text-center text-sm text-gray-500">
+                        Belum ada notifikasi baru
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
 
               {/* Quick actions */}
               <div className="hidden md:flex items-center space-x-2">
-                <Button size="sm" variant="outline">
+                <Button 
+                  size="sm" 
+                  variant="outline"
+                  onClick={handleKirimWhatsApp}
+                >
                   <MessageCircle className="w-4 h-4 mr-2" />
                   Kirim WhatsApp
                 </Button>
-                <Button size="sm">
+                <Button 
+                  size="sm"
+                  onClick={handleBuatTagihan}
+                >
                   <CreditCard className="w-4 h-4 mr-2" />
                   Buat Tagihan
                 </Button>

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import { supabase } from '@/lib/supabase'
-import { Send, Users, DollarSign, Calendar, MessageCircle, Download, CheckCircle2 } from 'lucide-react'
+import { Send, Users, DollarSign, Calendar, MessageCircle, Download, CheckCircle2, CreditCard } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { generateOrderId, generatePaymentUrl } from '@/lib/pakasir'
 import { starSenderService } from '@/lib/starsender-service'
@@ -287,6 +287,47 @@ export default function BroadcastTagihanPage() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Form Section */}
         <div className="lg:col-span-2 space-y-6">
+          {/* Info Dasar Card */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center">
+                <CheckCircle2 className="w-5 h-5 mr-2" />
+                Info Dasar
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-center">
+                  <CreditCard className="w-5 h-5 text-blue-600 mr-2" />
+                  <span className="text-sm text-blue-800 font-medium">Pembayaran Digital</span>
+                </div>
+                <p className="text-sm text-blue-700">
+                  Link Pakasir otomatis untuk setiap siswa
+                </p>
+              </div>
+
+              <div className="mt-4 bg-green-50 border border-green-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-center">
+                  <MessageCircle className="w-5 h-5 text-green-600 mr-2" />
+                  <span className="text-sm text-green-800 font-medium">WhatsApp Otomatis</span>
+                </div>
+                <p className="text-sm text-green-700">
+                  Notifikasi langsung ke orang tua
+                </p>
+              </div>
+
+              <div className="mt-4 bg-purple-50 border border-purple-200 rounded-lg p-4 space-y-3">
+                <div className="flex items-center">
+                  <Users className="w-5 h-5 text-purple-600 mr-2" />
+                  <span className="text-sm text-purple-800 font-medium">{students.length} Siswa Aktif</span>
+                </div>
+                <p className="text-sm text-purple-700">
+                  Siap untuk ditagih
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center">
@@ -395,24 +436,37 @@ export default function BroadcastTagihanPage() {
               )}
             </CardContent>
           </Card>
+        </div>
 
+        {/* Right Section - Pilih Siswa */}
+        <div className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center justify-between">
-                <div className="flex items-center">
-                  <Users className="w-5 h-5 mr-2" />
-                  Pilih Siswa
-                </div>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={handleSelectAll}
-                >
-                  {selectedStudents.length === students.length ? 'Batal Pilih Semua' : 'Pilih Semua'}
-                </Button>
-              </CardTitle>
+              <CardTitle>Pilih Siswa</CardTitle>
+              <p className="text-sm text-gray-600 mt-1">
+                Pilih siswa yang akan ditagih untuk pembayaran Kas Kelas Bulanan
+              </p>
             </CardHeader>
             <CardContent>
+              <div className="mb-4 p-3 border border-gray-200 rounded-lg">
+                <label className="flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={selectedStudents.length === students.length && students.length > 0}
+                    onChange={handleSelectAll}
+                    className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  />
+                  <div className="flex-1">
+                    <span className="text-sm font-medium text-gray-900">
+                      Pilih semua siswa aktif
+                    </span>
+                    <span className="ml-2 text-sm text-gray-500">
+                      ({selectedStudents.length} dari {students.length} siswa)
+                    </span>
+                  </div>
+                </label>
+              </div>
+
               <div className="space-y-2 max-h-96 overflow-y-auto">
                 {students.map(student => (
                   <label
@@ -429,12 +483,19 @@ export default function BroadcastTagihanPage() {
                           setSelectedStudents(selectedStudents.filter(id => id !== student.id))
                         }
                       }}
-                      className="mr-3"
+                      className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                     />
-                    <div className="flex-1">
-                      <div className="font-medium">{student.nama}</div>
-                      <div className="text-sm text-gray-600">
-                        {student.kelas} • {student.nomor_hp_ortu}
+                    <div className="flex items-center justify-between w-full">
+                      <div className="flex items-center">
+                        <div className="bg-blue-100 text-blue-600 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium mr-3">
+                          {student.nama.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <div className="font-medium text-gray-900">{student.nama}</div>
+                          <div className="text-sm text-gray-600">
+                            {student.kelas}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </label>
@@ -442,10 +503,8 @@ export default function BroadcastTagihanPage() {
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Summary Section */}
-        <div className="space-y-6">
+          {/* Summary Section */}
           <Card>
             <CardHeader>
               <CardTitle>Ringkasan</CardTitle>
