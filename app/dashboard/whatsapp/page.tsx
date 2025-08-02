@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
@@ -85,12 +85,6 @@ const WhatsAppPage = () => {
     variables: [] as string[]
   })
 
-  useEffect(() => {
-    fetchMessages()
-    fetchTemplates()
-    fetchStats()
-  }, [])
-
   const fetchMessages = async () => {
     try {
       const { data, error } = await supabase
@@ -112,7 +106,7 @@ const WhatsAppPage = () => {
     }
   }
 
-  const fetchTemplates = async () => {
+  const fetchTemplates = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from('message_templates')
@@ -134,7 +128,13 @@ const WhatsAppPage = () => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
+
+  useEffect(() => {
+    fetchMessages()
+    fetchTemplates()
+    fetchStats()
+  }, [fetchTemplates])
 
   const fetchStats = async () => {
     try {

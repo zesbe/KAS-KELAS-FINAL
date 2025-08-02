@@ -133,6 +133,7 @@ const DashboardPage: React.FC = () => {
         recentExpenses = expenses || []
       } catch (error) {
         console.error('Error loading expenses:', error)
+        recentExpenses = []
       }
 
       // Get unpaid students from Supabase with error handling
@@ -240,7 +241,7 @@ const DashboardPage: React.FC = () => {
     })
 
     return unsubscribe
-  }, [])
+  }, [dashboardData])
 
   if (loading || !dashboardData) {
     return (

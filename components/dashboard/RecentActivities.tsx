@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
@@ -32,7 +32,7 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
   const [loading, setLoading] = useState(true)
   const router = useRouter()
 
-  const loadActivities = async () => {
+  const loadActivities = useCallback(async () => {
     try {
       setLoading(true)
       const [fetchedActivities, count] = await Promise.all([
@@ -47,11 +47,11 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
     } finally {
       setLoading(false)
     }
-  }
+  }, [limit])
 
   useEffect(() => {
     loadActivities()
-  }, [limit])
+  }, [loadActivities])
 
   const getActivityIcon = (type: Activity['type']) => {
     switch (type) {

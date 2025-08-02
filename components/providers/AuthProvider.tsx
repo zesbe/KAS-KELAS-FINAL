@@ -1,6 +1,6 @@
 'use client'
 
-import React, { createContext, useContext, useEffect, useState } from 'react'
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { supabaseAuthService, AppUser } from '@/lib/supabase-auth'
 import toast from 'react-hot-toast'
@@ -42,11 +42,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     DASHBOARD_PATH: '/dashboard'
   }
 
-  useEffect(() => {
-    checkAuthStatus()
-  }, [pathname, router]) // checkAuthStatus is defined in the effect, safe to omit
-
-  const checkAuthStatus = async () => {
+  const checkAuthStatus = useCallback(async () => {
     setIsLoading(true)
     
     try {
@@ -100,7 +96,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [pathname, router])
+
+  useEffect(() => {
+    checkAuthStatus()
+  }, [checkAuthStatus])
 
   const handleLogout = async () => {
     try {
