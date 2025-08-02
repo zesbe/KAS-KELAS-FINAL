@@ -48,8 +48,8 @@ export interface ReportData {
   totalIncome: number
   totalExpense: number
   balance: number
-  payments: Payment[]
-  expenses: Expense[]
+  payments: any[] // Avoid circular dependency
+  expenses: any[] // Avoid circular dependency
 }
 
 // Notification types

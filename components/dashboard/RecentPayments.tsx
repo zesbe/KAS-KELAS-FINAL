@@ -65,8 +65,8 @@ const RecentPayments = () => {
       }
 
       // Get unique student and category IDs
-      const studentIds = [...new Set(data.map(p => p.student_id).filter(Boolean))]
-      const categoryIds = [...new Set(data.map(p => p.category_id).filter(Boolean))]
+      const studentIds = Array.from(new Set(data.map((p: any) => p.student_id).filter(Boolean)))
+      const categoryIds = Array.from(new Set(data.map((p: any) => p.category_id).filter(Boolean)))
 
       // Fetch students
       let studentsMap: any = {}
