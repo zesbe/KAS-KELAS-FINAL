@@ -234,14 +234,14 @@ export class SettingsService {
     reminderDaysBefore: number
   }> {
     const { data } = await this.getSettingsAsObject([
-      'whatsapp_api_key',
+      'wapanels_app_key',
       'whatsapp_auto_reminders',
       'whatsapp_auto_confirmations',
       'whatsapp_reminder_days_before'
     ])
 
     return {
-      apiKey: data?.whatsapp_api_key || '2d8714c0ceb932baf18b44285cb540b294a64871',
+      apiKey: data?.wapanels_app_key || '2d8714c0ceb932baf18b44285cb540b294a64871',
       autoReminders: data?.whatsapp_auto_reminders === 'true',
       autoConfirmations: data?.whatsapp_auto_confirmations === 'true',
       reminderDaysBefore: parseInt(data?.whatsapp_reminder_days_before || '3')
@@ -257,7 +257,7 @@ export class SettingsService {
     const updates: Array<{ key: string; value: string }> = []
 
     if (settings.apiKey !== undefined) {
-      updates.push({ key: 'whatsapp_api_key', value: settings.apiKey })
+      updates.push({ key: 'wapanels_app_key', value: settings.apiKey })
     }
     if (settings.autoReminders !== undefined) {
       updates.push({ key: 'whatsapp_auto_reminders', value: settings.autoReminders.toString() })

@@ -27,7 +27,7 @@ export interface BulkMessageResult {
 }
 
 class StarSenderService {
-  private baseUrl = 'https://starsender.online/api'
+  private baseUrl = 'https://starsender.online/api/sendText'
   
   // Get API key from settings
   private async getApiKey(): Promise<string> {
@@ -35,7 +35,7 @@ class StarSenderService {
     return settings.apiKey || '2d8714c0ceb932baf18b44285cb540b294a64871'
   }
 
-  // Format phone number untuk StarSender (harus format 628xxx)
+  // Format phone number untuk StarSender (harus format 628xxx@s.whatsapp.net)
   private formatPhoneNumber(phone: string): string {
     let cleaned = phone.replace(/\D/g, '')
     
@@ -45,7 +45,7 @@ class StarSenderService {
       cleaned = '62' + cleaned
     }
     
-    return cleaned
+    return cleaned + '@s.whatsapp.net'
   }
 
   // Send single WhatsApp message
@@ -56,36 +56,33 @@ class StarSenderService {
 
       console.log('Sending WhatsApp message:', { phone: formattedPhone, message: message.substring(0, 50) + '...' })
 
-      const response = await fetch(`${this.baseUrl}/send`, {
+      const url = `${this.baseUrl}?message=${encodeURIComponent(message)}&tujuan=${encodeURIComponent(formattedPhone)}`
+
+      const response = await fetch(url, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${apiKey}`,
-        },
-        body: JSON.stringify({
-          to: formattedPhone,
-          message: message,
-          type: 'text'
-        })
+          'apikey': apiKey,
+          'Content-Type': 'application/json'
+        }
       })
 
       const data = await response.json()
 
-      if (!response.ok) {
+      // StarSender success response check
+      if (data.status === true || data.success === true) {
+        console.log('Message sent successfully:', { phone: formattedPhone, response: data })
+        return {
+          success: true,
+          message: 'Pesan berhasil dikirim',
+          data
+        }
+      } else {
         console.error('StarSender API error:', data)
         return {
           success: false,
-          message: data.message || 'Gagal mengirim pesan',
+          message: data.message || data.error || 'Gagal mengirim pesan',
           error: data.error
         }
-      }
-
-      console.log('Message sent successfully:', { phone: formattedPhone, response: data })
-
-      return {
-        success: true,
-        message: 'Pesan berhasil dikirim',
-        data
       }
     } catch (error) {
       console.error('Error sending WhatsApp message:', error)
@@ -264,19 +261,25 @@ Mohon doa dan dukungannya 🙏
     try {
       const apiKey = await this.getApiKey()
       
-      const response = await fetch(`${this.baseUrl}/profile`, {
-        method: 'GET',
+      // Test dengan mengirim pesan kosong untuk validasi API key
+      const testPhone = '628123456789@s.whatsapp.net'
+      const url = `${this.baseUrl}?message=${encodeURIComponent('test')}&tujuan=${encodeURIComponent(testPhone)}`
+      
+      const response = await fetch(url, {
+        method: 'POST',
         headers: {
-          'Authorization': `Bearer ${apiKey}`,
+          'apikey': apiKey,
+          'Content-Type': 'application/json'
         }
       })
 
       const data = await response.json()
 
-      if (!response.ok) {
+      // Cek apakah API key valid
+      if (data.message && data.message.includes('apikey')) {
         return {
           success: false,
-          message: 'Koneksi StarSender gagal',
+          message: 'API Key tidak valid',
           error: data.message
         }
       }
