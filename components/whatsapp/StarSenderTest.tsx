@@ -227,11 +227,12 @@ const StarSenderTest: React.FC = () => {
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <h4 className="font-medium text-blue-900 mb-2">📝 Catatan Penting:</h4>
             <ul className="text-sm text-blue-800 space-y-1">
-              <li>• API Key diambil dari pengaturan sistem (settings table)</li>
+              <li>• Account API Key: Untuk manajemen campaign (dari menu profile)</li>
+              <li>• Device API Key: Untuk kirim pesan (dari menu device)</li>
               <li>• Nomor HP harus dalam format internasional (628xxx)</li>
-              <li>• StarSender API endpoint: https://starsender.online/api</li>
-              <li>• Jika test gagal, periksa API key dan koneksi internet</li>
-              <li>• Rate limiting: 2 detik delay antar pesan untuk bulk sending</li>
+              <li>• StarSender API endpoint: https://api.starsender.online/api</li>
+              <li>• Jika test gagal, periksa kedua API key di pengaturan</li>
+              <li>• Delay otomatis ditambahkan untuk bulk sending</li>
             </ul>
           </div>
         </CardContent>
