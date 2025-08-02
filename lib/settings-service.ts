@@ -467,7 +467,10 @@ export class SettingsService {
 
     try {
       // Check existing settings
-      const { data: existingSettings } = await this.getAllSettings()
+      const { data: existingSettings } = await this.supabase
+        .from('settings')
+        .select('key')
+      
       const existingKeys = existingSettings?.map(s => s.key) || []
 
       // Insert only missing settings
