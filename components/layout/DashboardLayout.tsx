@@ -77,12 +77,6 @@ const navigation: NavigationItem[] = [
     description: 'Kirim tagihan massal'
   },
   {
-    name: 'Laporan',
-    href: '/dashboard/reports',
-    icon: FileText,
-    description: 'Laporan keuangan'
-  },
-  {
     name: 'Laporan Keuangan',
     href: '/dashboard/laporan-keuangan',
     icon: TrendingUp,
@@ -103,6 +97,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
+  const navRef = React.useRef<HTMLElement>(null)
 
   // Load current balance
   useEffect(() => {
@@ -124,6 +119,17 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
 
     return unsubscribe
   }, [])
+
+  // Ensure active menu item is visible in sidebar
+  useEffect(() => {
+    if (navRef.current) {
+      const activeItem = navRef.current.querySelector('.bg-blue-100')
+      if (activeItem) {
+        // Scroll the active item into view smoothly
+        activeItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' })
+      }
+    }
+  }, [pathname])
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -179,7 +185,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           </div>
 
           {/* Navigation */}
-          <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
+          <nav ref={navRef} className="flex-1 px-4 py-4 space-y-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100">
             {navigation.map((item) => {
               // Fix: Dashboard should only be active on exact match
               const isActive = item.href === '/dashboard' 
@@ -187,14 +193,10 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                 : pathname === item.href || pathname.startsWith(item.href + '/')
               
               return (
-                <button
+                <Link
                   key={item.name}
-                  onClick={(e) => {
-                    e.preventDefault();
-                    setSidebarOpen(false);
-                    // Use router.push to navigate smoothly without scroll jump
-                    router.push(item.href);
-                  }}
+                  href={item.href}
+                  onClick={() => setSidebarOpen(false)}
                   className={cn(
                     'group flex items-center px-3 py-2 text-sm font-medium rounded-lg transition-colors duration-200 w-full text-left',
                     isActive
@@ -221,7 +223,7 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
                       <div className="text-xs text-gray-500 mt-0.5">{item.description}</div>
                     )}
                   </div>
-                </button>
+                </Link>
               )
             })}
           </nav>
