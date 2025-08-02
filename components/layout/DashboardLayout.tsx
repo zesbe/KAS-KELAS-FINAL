@@ -22,7 +22,9 @@ import {
   User,
   LogOut,
   ChevronDown,
-  Wallet
+  Wallet,
+  Send,
+  TrendingUp
 } from 'lucide-react'
 
 interface DashboardLayoutProps {
@@ -69,10 +71,22 @@ const navigation: NavigationItem[] = [
     description: 'Kirim pesan dan reminder'
   },
   {
+    name: 'Broadcast Tagihan',
+    href: '/dashboard/broadcast-tagihan',
+    icon: Send,
+    description: 'Kirim tagihan massal'
+  },
+  {
     name: 'Laporan',
     href: '/dashboard/reports',
     icon: FileText,
     description: 'Laporan keuangan'
+  },
+  {
+    name: 'Laporan Keuangan',
+    href: '/dashboard/laporan-keuangan',
+    icon: TrendingUp,
+    description: 'Download laporan CSV/PDF'
   },
   {
     name: 'Pengaturan',
