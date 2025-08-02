@@ -33,7 +33,7 @@ class BalanceService {
       const { data, error } = await supabase
         .from('payments')
         .select('amount')
-        .eq('status', 'completed')
+        .eq('status', 'paid')
 
       if (error) {
         console.error('Error getting total income:', error)
@@ -162,7 +162,7 @@ class BalanceService {
       }
 
       // Hitung yang sudah bayar
-      const paidPayments = payments?.filter((p: any) => p.status === 'completed') || []
+      const paidPayments = payments?.filter((p: any) => p.status === 'paid') || []
       const uniquePaidStudents = Array.from(new Set(paidPayments.map((p: any) => p.student_id)))
       
       const totalPaid = paidPayments.reduce((sum: number, p: any) => sum + p.amount, 0)

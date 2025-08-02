@@ -49,6 +49,14 @@ const ExpensesPage = () => {
   const [showAddModal, setShowAddModal] = useState(false)
   const [loading, setLoading] = useState(true)
   const [categories, setCategories] = useState<Array<{id: string, name: string}>>([])
+  const [formData, setFormData] = useState({
+    description: '',
+    amount: '',
+    category_id: '',
+    date: new Date().toISOString().split('T')[0],
+    notes: '',
+    auto_approve: false
+  })
 
   useEffect(() => {
     fetchExpenses()
@@ -132,6 +140,55 @@ const ExpensesPage = () => {
       month: 'long',
       year: 'numeric'
     })
+  }
+
+  const handleSubmitExpense = async () => {
+    if (!formData.description || !formData.amount || !formData.category_id) {
+      toast.error('Lengkapi semua field yang wajib diisi')
+      return
+    }
+
+    try {
+      const { data: userData } = await supabase.auth.getUser()
+      
+      const newExpense = {
+        description: formData.description,
+        amount: parseInt(formData.amount),
+        category_id: formData.category_id,
+        date: formData.date,
+        notes: formData.notes,
+        status: formData.auto_approve || parseInt(formData.amount) <= 100000 ? 'approved' : 'pending',
+        created_by: userData?.user?.id || '',
+        approved_by: formData.auto_approve || parseInt(formData.amount) <= 100000 ? userData?.user?.id : null
+      }
+
+      const { data, error } = await supabase
+        .from('expenses')
+        .insert(newExpense)
+        .select(`
+          *,
+          category:expense_categories(name),
+          created_by_user:users(full_name)
+        `)
+        .single()
+
+      if (error) throw error
+
+      setExpenses([data, ...expenses])
+      toast.success('Pengeluaran berhasil ditambahkan!')
+      setShowAddModal(false)
+      setFormData({
+        description: '',
+        amount: '',
+        category_id: '',
+        date: new Date().toISOString().split('T')[0],
+        notes: '',
+        auto_approve: false
+      })
+    } catch (error) {
+      console.error('Error adding expense:', error)
+      toast.error('Gagal menambahkan pengeluaran')
+    }
   }
 
   const getStatusBadge = (status: string) => {
@@ -345,6 +402,8 @@ const ExpensesPage = () => {
                     </label>
                     <input
                       type="text"
+                      value={formData.description}
+                      onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                       placeholder="Contoh: Pembelian alat tulis kelas"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -355,6 +414,8 @@ const ExpensesPage = () => {
                     </label>
                     <input
                       type="number"
+                      value={formData.amount}
+                      onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
                       placeholder="50000"
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
@@ -366,7 +427,11 @@ const ExpensesPage = () => {
                     <label className="block text-sm font-medium text-gray-700 mb-1">
                       Kategori *
                     </label>
-                    <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                    <select 
+                      value={formData.category_id}
+                      onChange={(e) => setFormData({ ...formData, category_id: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
                       <option value="">Pilih kategori...</option>
                       {categories.map(category => (
                         <option key={category.id} value={category.id}>{category.name}</option>
@@ -379,7 +444,8 @@ const ExpensesPage = () => {
                     </label>
                     <input
                       type="date"
-                      defaultValue={new Date().toISOString().split('T')[0]}
+                      value={formData.date}
+                      onChange={(e) => setFormData({ ...formData, date: e.target.value })}
                       className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                     />
                   </div>
@@ -391,6 +457,8 @@ const ExpensesPage = () => {
                   </label>
                   <textarea
                     rows={3}
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                     placeholder="Catatan tambahan tentang pengeluaran ini..."
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
@@ -414,7 +482,12 @@ const ExpensesPage = () => {
                     Pengeluaran di atas Rp 100.000 memerlukan persetujuan komite orang tua
                   </p>
                   <label className="flex items-center">
-                    <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
+                    <input 
+                      type="checkbox" 
+                      checked={formData.auto_approve}
+                      onChange={(e) => setFormData({ ...formData, auto_approve: e.target.checked })}
+                      className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" 
+                    />
                     <span className="ml-2 text-sm text-blue-800">Langsung setujui (untuk pengeluaran rutin)</span>
                   </label>
                 </div>
@@ -423,10 +496,7 @@ const ExpensesPage = () => {
                   <Button variant="outline" type="button" onClick={() => setShowAddModal(false)}>
                     Batal
                   </Button>
-                  <Button type="button" onClick={() => {
-                    alert('Pengeluaran berhasil ditambahkan!')
-                    setShowAddModal(false)
-                  }}>
+                  <Button type="button" onClick={handleSubmitExpense}>
                     <Plus className="w-4 h-4 mr-2" />
                     Tambah Pengeluaran
                   </Button>

@@ -27,6 +27,8 @@ interface Category {
   is_monthly: boolean
 }
 
+import DashboardLayout from '@/components/layout/DashboardLayout'
+
 export default function BroadcastTagihanPage() {
   const [students, setStudents] = useState<Student[]>([])
   const [categories, setCategories] = useState<Category[]>([])
@@ -273,7 +275,8 @@ export default function BroadcastTagihanPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <DashboardLayout>
+      <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Broadcast Tagihan</h1>
@@ -546,5 +549,6 @@ export default function BroadcastTagihanPage() {
         </div>
       </div>
     </div>
+    </DashboardLayout>
   )
 }

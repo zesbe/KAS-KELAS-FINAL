@@ -230,7 +230,7 @@ const PaymentsPage: React.FC = () => {
 
         {/* Quick Actions */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <Link href="/dashboard/payments/monthly">
+          <Link href="/dashboard/broadcast-tagihan">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-6">
                 <div className="flex items-center">
@@ -246,7 +246,7 @@ const PaymentsPage: React.FC = () => {
             </Card>
           </Link>
 
-          <Link href="/dashboard/payments/reminder">
+          <Link href="/dashboard/whatsapp">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-6">
                 <div className="flex items-center">
@@ -262,7 +262,7 @@ const PaymentsPage: React.FC = () => {
             </Card>
           </Link>
 
-          <Link href="/dashboard/payments/history">
+          <Link href="/dashboard/laporan-keuangan">
             <Card className="hover:shadow-md transition-shadow cursor-pointer">
               <CardContent className="p-6">
                 <div className="flex items-center">

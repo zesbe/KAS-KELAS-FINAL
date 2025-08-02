@@ -1,10 +1,10 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import CreatePaymentForm from '@/components/payments/CreatePaymentForm'
-import { Student, PaymentCategory } from '@/lib/supabase'
+import { Student, PaymentCategory, supabase } from '@/lib/supabase'
 import { createBulkPayments } from '@/lib/pakasir'
 import toast from 'react-hot-toast'
 import { CreditCard, Users, MessageCircle } from 'lucide-react'
@@ -161,7 +161,45 @@ const sampleCategories: PaymentCategory[] = [
 
 const CreatePaymentPage: React.FC = () => {
   const [loading, setLoading] = useState(false)
+  const [students, setStudents] = useState<Student[]>([])
+  const [categories, setCategories] = useState<PaymentCategory[]>([])
+  const [dataLoading, setDataLoading] = useState(true)
   const router = useRouter()
+
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    setDataLoading(true)
+    try {
+      // Fetch students
+      const { data: studentsData, error: studentsError } = await supabase
+        .from('students')
+        .select('*')
+        .eq('is_active', true)
+        .order('nomor_absen')
+
+      if (studentsError) throw studentsError
+
+      // Fetch categories
+      const { data: categoriesData, error: categoriesError } = await supabase
+        .from('payment_categories')
+        .select('*')
+        .eq('is_active', true)
+        .order('name')
+
+      if (categoriesError) throw categoriesError
+
+      setStudents(studentsData || [])
+      setCategories(categoriesData || [])
+    } catch (error) {
+      console.error('Error fetching data:', error)
+      toast.error('Gagal memuat data')
+    } finally {
+      setDataLoading(false)
+    }
+  }
 
   const handleSubmit = async (data: CreatePaymentData) => {
     setLoading(true)
@@ -274,12 +312,18 @@ const CreatePaymentPage: React.FC = () => {
         </div>
 
         {/* Form */}
-        <CreatePaymentForm
-          students={sampleStudents}
-          categories={sampleCategories}
-          onSubmit={handleSubmit}
-          loading={loading}
-        />
+        {dataLoading ? (
+          <div className="flex items-center justify-center py-12">
+            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+          </div>
+        ) : (
+          <CreatePaymentForm
+            students={students}
+            categories={categories}
+            onSubmit={handleSubmit}
+            loading={loading}
+          />
+        )}
 
         {/* Help Section */}
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">

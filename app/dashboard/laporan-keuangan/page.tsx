@@ -61,6 +61,8 @@ interface ReportSummary {
   totalStudents: number
 }
 
+import DashboardLayout from '@/components/layout/DashboardLayout'
+
 export default function LaporanKeuanganPage() {
   const [payments, setPayments] = useState<Payment[]>([])
   const [filteredPayments, setFilteredPayments] = useState<Payment[]>([])
@@ -307,7 +309,8 @@ export default function LaporanKeuanganPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <DashboardLayout>
+      <div className="space-y-6">
       <div className="flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold">Laporan Keuangan</h1>
@@ -532,5 +535,6 @@ export default function LaporanKeuanganPage() {
         </CardContent>
       </Card>
     </div>
+    </DashboardLayout>
   )
 }
