@@ -156,11 +156,14 @@ const SettingsPage = () => {
           break
       }
       
+      console.log('Saving settings:', { section, updates })
+      
       const { error } = await settingsService.bulkUpdateSettings(updates, user?.id)
       
       if (error) throw error
       
       toast.success('Pengaturan berhasil disimpan')
+      await loadSettings() // Reload settings after save
     } catch (error) {
       console.error('Error saving settings:', error)
       toast.error('Gagal menyimpan pengaturan')
