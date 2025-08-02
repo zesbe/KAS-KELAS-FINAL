@@ -33,7 +33,7 @@ class ActivityService {
         .limit(limit)
 
       if (!paymentsError && payments) {
-        payments.forEach(payment => {
+        payments.forEach((payment: any) => {
           if (payment.status === 'paid') {
             activities.push({
               id: `payment-${payment.id}`,
@@ -65,7 +65,7 @@ class ActivityService {
         .limit(limit)
 
       if (!expensesError && expenses) {
-        expenses.forEach(expense => {
+        expenses.forEach((expense: any) => {
           activities.push({
             id: `expense-${expense.id}`,
             type: 'expense',
@@ -88,7 +88,7 @@ class ActivityService {
         .limit(limit)
 
       if (!whatsappError && whatsappLogs) {
-        whatsappLogs.forEach(log => {
+        whatsappLogs.forEach((log: any) => {
           const metadata = log.metadata || {}
           activities.push({
             id: `whatsapp-${log.id}`,

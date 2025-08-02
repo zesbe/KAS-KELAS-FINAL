@@ -102,6 +102,7 @@ const DashboardPage: React.FC = () => {
             currentBalance: 0,
             totalIncome: 0,
             totalExpenses: 0,
+            pendingExpenses: 0,
             lastUpdated: new Date().toISOString()
           },
           payments: {
@@ -123,7 +124,7 @@ const DashboardPage: React.FC = () => {
       }
       
       // Get recent expenses with error handling
-      let recentExpenses = []
+      let recentExpenses: any[] = []
       try {
         const { expenses } = await expenseService.getExpenses({
           limit: 5,
@@ -197,6 +198,7 @@ const DashboardPage: React.FC = () => {
           currentBalance: 0,
           totalIncome: 0,
           totalExpenses: 0,
+          pendingExpenses: 0,
           lastUpdated: new Date().toISOString()
         },
         payments: {
