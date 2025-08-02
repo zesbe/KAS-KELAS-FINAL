@@ -19,6 +19,14 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
      2. Cek console untuk error koneksi
    - **Solusi**: Pastikan environment variables sudah benar di `.env.local`
 
+2. **[BUG-007]** Infinite Loop Toast "Data berhasil dimuat"
+   - **Deskripsi**: Popup toast muncul terus menerus di dashboard
+   - **Status**: ✅ FIXED
+   - **Penyebab**: useEffect dengan dependency array yang salah menyebabkan infinite loop
+   - **Solusi**: 
+     - Menghapus `dashboardData` dari dependency array useEffect
+     - Menghapus toast success yang tidak perlu
+
 ### 🟡 Major Bugs
 1. **[BUG-002]** Sistem Autentikasi
    - **Deskripsi**: Login menggunakan tabel `app_users` custom, bukan Supabase Auth
@@ -49,7 +57,9 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
 ## Fixed Bugs
 
 ### ✅ Resolved
-<!-- Pindahkan bug ke sini setelah diperbaiki -->
+1. **[BUG-007]** Infinite Loop Toast "Data berhasil dimuat" - *Fixed on 02/08/2025*
+   - **Masalah**: useEffect dengan dependency yang salah menyebabkan infinite render loop
+   - **Solusi**: Menghapus dashboardData dari dependency array dan menghapus toast yang tidak perlu
 
 ## Bug Resolution Process
 

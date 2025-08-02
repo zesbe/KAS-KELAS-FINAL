@@ -188,7 +188,7 @@ const DashboardPage: React.FC = () => {
       })
 
       setLastRefresh(new Date())
-      toast.success('Data berhasil dimuat')
+      // toast.success('Data berhasil dimuat') // Removed to avoid annoying notifications
     } catch (error) {
       console.error('Error loading dashboard data:', error)
       toast.error('Gagal memuat data dashboard')
@@ -235,13 +235,11 @@ const DashboardPage: React.FC = () => {
 
     // Subscribe to real-time balance changes
     const unsubscribe = balanceService.subscribeToBalanceChanges((newBalance) => {
-      if (dashboardData) {
-        setDashboardData(prev => prev ? { ...prev, balance: newBalance } : null)
-      }
+      setDashboardData(prev => prev ? { ...prev, balance: newBalance } : null)
     })
 
     return unsubscribe
-  }, [dashboardData])
+  }, [])
 
   if (loading || !dashboardData) {
     return (
