@@ -55,10 +55,10 @@ const quickActions: QuickAction[] = [
     bgColor: 'bg-red-100 hover:bg-red-200'
   },
   {
-    title: 'Kirim WhatsApp',
-    description: 'Kirim pengumuman ke orang tua',
+    title: 'WhatsApp & Tagihan',
+    description: 'Kirim tagihan atau broadcast pesan',
     icon: MessageCircle,
-    href: '/dashboard/whatsapp/broadcast',
+    href: '/dashboard/whatsapp-tagihan',
     color: 'text-purple-600',
     bgColor: 'bg-purple-100 hover:bg-purple-200'
   },
@@ -152,9 +152,9 @@ const QuickActions: React.FC = () => {
         toast.error(`❌ ${failedCount} tagihan gagal dikirim`)
       }
       
-      // Navigate to WhatsApp page
+      // Navigate to WhatsApp & Tagihan page
       setTimeout(() => {
-        router.push('/dashboard/whatsapp')
+        router.push('/dashboard/whatsapp-tagihan')
       }, 1000)
     } catch (error) {
       console.error('Error sending monthly payments:', error)
@@ -215,7 +215,7 @@ const QuickActions: React.FC = () => {
       }
       
       setTimeout(() => {
-        router.push('/dashboard/whatsapp')
+        router.push('/dashboard/whatsapp-tagihan')
       }, 1000)
     } catch (error) {
       console.error('Error sending reminders:', error)

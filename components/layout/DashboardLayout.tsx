@@ -72,16 +72,10 @@ const navigation: NavigationItem[] = [
     description: 'Pengeluaran kas kelas'
   },
   {
-    name: 'WhatsApp',
-    href: '/dashboard/whatsapp',
+    name: 'WhatsApp & Tagihan',
+    href: '/dashboard/whatsapp-tagihan',
     icon: MessageCircle,
-    description: 'Kirim pesan dan reminder'
-  },
-  {
-    name: 'Broadcast Tagihan',
-    href: '/dashboard/broadcast-tagihan',
-    icon: Send,
-    description: 'Kirim tagihan massal'
+    description: 'Kirim tagihan dan broadcast pesan'
   },
   {
     name: 'Laporan Keuangan',
