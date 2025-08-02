@@ -181,7 +181,11 @@ const DashboardLayout: React.FC<DashboardLayoutProps> = ({ children }) => {
           {/* Navigation */}
           <nav className="flex-1 px-4 py-4 space-y-1 overflow-y-auto">
             {navigation.map((item) => {
-              const isActive = pathname === item.href || pathname.startsWith(item.href + '/')
+              // Fix: Dashboard should only be active on exact match
+              const isActive = item.href === '/dashboard' 
+                ? pathname === '/dashboard'
+                : pathname === item.href || pathname.startsWith(item.href + '/')
+              
               return (
                 <button
                   key={item.name}
