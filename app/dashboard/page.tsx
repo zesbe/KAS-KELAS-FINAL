@@ -87,6 +87,9 @@ const DashboardPage: React.FC = () => {
 
   // Load dashboard data from Supabase
   const loadDashboardData = async () => {
+    console.log('Loading dashboard data...')
+    console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    
     try {
       setLoading(true)
       

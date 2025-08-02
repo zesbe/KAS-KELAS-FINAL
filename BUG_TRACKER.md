@@ -30,12 +30,12 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
 ### 🟡 Major Bugs
 1. **[BUG-002]** Sistem Autentikasi
    - **Deskripsi**: Login menggunakan tabel `app_users` custom, bukan Supabase Auth
-   - **Status**: ⏳ Pending
+   - **Status**: ✅ FIXED
    - **Solusi**: Implementasi autentikasi custom dengan `app_users` table
 
 2. **[BUG-003]** Session Management
    - **Deskripsi**: Session mungkin tidak persist dengan benar
-   - **Status**: ⏳ Pending
+   - **Status**: ✅ FIXED
    - **Solusi**: Implementasi session handling dengan `user_sessions` table
 
 3. **[BUG-004]** Data Fetching
@@ -60,6 +60,20 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
 1. **[BUG-007]** Infinite Loop Toast "Data berhasil dimuat" - *Fixed on 02/08/2025*
    - **Masalah**: useEffect dengan dependency yang salah menyebabkan infinite render loop
    - **Solusi**: Menghapus dashboardData dari dependency array dan menghapus toast yang tidak perlu
+
+2. **[BUG-002]** Sistem Autentikasi - *Fixed on 02/08/2025*
+   - **Masalah**: Login tidak menyimpan session ke database
+   - **Solusi**: 
+     - Menambahkan createSession saat login berhasil
+     - Update AuthProvider untuk validate session dari database
+     - Fix logout untuk delete session dari database
+
+3. **[BUG-003]** Session Management - *Fixed on 02/08/2025*
+   - **Masalah**: Session hanya tersimpan di localStorage
+   - **Solusi**: 
+     - Implementasi validateSession dari database di AuthProvider
+     - Session token disimpan ke tabel user_sessions
+     - Auto cleanup expired sessions
 
 ## Bug Resolution Process
 

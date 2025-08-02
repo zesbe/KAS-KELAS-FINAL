@@ -46,30 +46,19 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setIsLoading(true)
     
     try {
-      // Get session token and user data from localStorage
+      // Get session token from localStorage
       const sessionToken = localStorage.getItem('session_token')
-      const userData = localStorage.getItem('user')
       
-      if (sessionToken && userData) {
-        try {
-          const user = JSON.parse(userData)
-          // Simple validation - check if session is not too old (24 hours)
-          const sessionParts = sessionToken.split('_')
-          const sessionTime = sessionParts[sessionParts.length - 1]
-          const sessionDate = new Date(parseInt(sessionTime))
-          const now = new Date()
-          const hoursDiff = (now.getTime() - sessionDate.getTime()) / (1000 * 60 * 60)
-          
-          if (hoursDiff < 24) {
-            setUser(user)
-          } else {
-            // Session expired
-            localStorage.removeItem('session_token')
-            localStorage.removeItem('user')
-            setUser(null)
-          }
-        } catch (parseError) {
-          // Invalid user data, clear everything
+      if (sessionToken) {
+        // Validate session from database
+        const { user: validatedUser, error } = await supabaseAuthService.validateSession(sessionToken)
+        
+        if (validatedUser && !error) {
+          setUser(validatedUser)
+          // Update user data in localStorage
+          localStorage.setItem('user', JSON.stringify(validatedUser))
+        } else {
+          // Session invalid or expired
           localStorage.removeItem('session_token')
           localStorage.removeItem('user')
           setUser(null)
@@ -104,6 +93,14 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
   const handleLogout = async () => {
     try {
+      // Get session token before clearing
+      const sessionToken = localStorage.getItem('session_token')
+      
+      // Delete session from database if exists
+      if (sessionToken) {
+        await supabaseAuthService.deleteSession(sessionToken)
+      }
+      
       // Clear localStorage
       localStorage.removeItem('session_token')
       localStorage.removeItem('user')

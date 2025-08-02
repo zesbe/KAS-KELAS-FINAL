@@ -37,10 +37,24 @@ const LoginPage = () => {
       })
 
       if (user && !error) {
-        // Success - create local session
+        // Success - create session in database
         const sessionToken = `session_${user.id}_${Date.now()}`
+        const expiresAt = new Date()
+        expiresAt.setHours(expiresAt.getHours() + 24) // 24 hour expiry
         
-        // Store in localStorage only
+        // Create session in database
+        const { session, error: sessionError } = await supabaseAuthService.createSession(
+          user.id,
+          sessionToken,
+          expiresAt.toISOString()
+        )
+        
+        if (sessionError) {
+          toast.error('Gagal membuat session')
+          return
+        }
+        
+        // Store in localStorage
         localStorage.setItem('session_token', sessionToken)
         localStorage.setItem('user', JSON.stringify(user))
         
