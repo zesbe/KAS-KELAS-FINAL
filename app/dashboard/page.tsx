@@ -7,6 +7,7 @@ import StatsCard from '@/components/dashboard/StatsCard'
 import PaymentChart from '@/components/dashboard/PaymentChart'
 import RecentActivities from '@/components/dashboard/RecentActivities'
 import QuickActions from '@/components/dashboard/QuickActions'
+import RecentPayments from '@/components/dashboard/RecentPayments'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge, StatusBadge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -57,12 +58,44 @@ const DashboardPage: React.FC = () => {
         offset: 0
       })
 
-      // Get unpaid students (dummy for now - will implement when payments table is populated)
-      const unpaidStudents = [
-        { id: 1, name: 'Muhammad Fajar', amount: 25000, daysOverdue: 0, phone: '628345678901' },
-        { id: 2, name: 'Nabila Azzahra', amount: 25000, daysOverdue: 2, phone: '628890123456' },
-        { id: 3, name: 'Kevin Alamsyah', amount: 25000, daysOverdue: 5, phone: '628123456780' }
-      ]
+      // Get unpaid students from Supabase
+      const { data: unpaidPayments, error: unpaidError } = await supabase
+        .from('payments')
+        .select(`
+          id,
+          amount,
+          due_date,
+          student:students(
+            id,
+            nama,
+            nomor_hp_ortu
+          )
+        `)
+        .eq('status', 'pending')
+        .order('due_date', { ascending: true })
+        .limit(10)
+
+      let unpaidStudents = []
+      if (!unpaidError && unpaidPayments) {
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        
+        unpaidStudents = unpaidPayments
+          .filter(p => p.student) // Ensure student exists
+          .map(payment => {
+            const dueDate = new Date(payment.due_date)
+            const diffTime = today.getTime() - dueDate.getTime()
+            const daysOverdue = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
+            
+            return {
+              id: payment.student.id,
+              name: payment.student.nama,
+              amount: payment.amount,
+              daysOverdue,
+              phone: payment.student.nomor_hp_ortu
+            }
+          })
+      }
 
       setDashboardData({
         balance: stats.balance,
@@ -311,28 +344,8 @@ const DashboardPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Recent Payments - Placeholder until payment system is implemented */}
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between">
-            <div>
-              <CardTitle>Pembayaran Terbaru</CardTitle>
-              <p className="text-sm text-gray-600 mt-1">
-                Belum ada pembayaran hari ini
-              </p>
-            </div>
-            <Button variant="ghost" size="sm">
-              Lihat Semua
-              <ArrowRight className="w-4 h-4 ml-2" />
-            </Button>
-          </CardHeader>
-          <CardContent>
-            <div className="text-center py-8">
-              <CreditCard className="w-12 h-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-500">Belum ada data pembayaran</p>
-              <p className="text-sm text-gray-400 mt-1">Pembayaran akan muncul di sini setelah sistem pembayaran aktif</p>
-            </div>
-          </CardContent>
-        </Card>
+        {/* Recent Payments */}
+        <RecentPayments />
 
         {/* Quick Actions */}
         <QuickActions />

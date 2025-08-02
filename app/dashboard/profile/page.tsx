@@ -41,6 +41,14 @@ interface UserProfile {
   avatar_url?: string
 }
 
+interface AppSettings {
+  [key: string]: {
+    value: string
+    description: string
+    type: string
+  }
+}
+
 interface Activity {
   id: string
   action: string
@@ -57,6 +65,8 @@ const ProfilePage = () => {
   const [isChangingPassword, setIsChangingPassword] = useState(false)
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [activities, setActivities] = useState<Activity[]>([])
+  const [settings, setSettings] = useState<AppSettings>({})
+  const [isEditingSettings, setIsEditingSettings] = useState(false)
   const [passwordData, setPasswordData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -67,6 +77,7 @@ const ProfilePage = () => {
     if (user) {
       fetchProfile()
       fetchActivities()
+      fetchSettings()
     }
   }, [user])
 
@@ -162,6 +173,69 @@ const ProfilePage = () => {
       setActivities(sortedActivities)
     } catch (error) {
       console.error('Error fetching activities:', error)
+    }
+  }
+
+  const fetchSettings = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('settings')
+        .select('key, value, description, type')
+
+      if (error) throw error
+
+      // Convert array to object for easier access
+      const settingsObj: AppSettings = {}
+      data?.forEach(setting => {
+        settingsObj[setting.key] = {
+          value: setting.value,
+          description: setting.description || '',
+          type: setting.type || 'text'
+        }
+      })
+
+      setSettings(settingsObj)
+    } catch (error) {
+      console.error('Error fetching settings:', error)
+    }
+  }
+
+  const updateSettings = async () => {
+    if (profile?.role !== 'bendahara' && profile?.role !== 'admin') {
+      toast.error('Hanya bendahara atau admin yang dapat mengubah pengaturan')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      // Update each setting
+      const updates = Object.entries(settings).map(([key, setting]) => ({
+        key,
+        value: setting.value,
+        updated_by: profile?.full_name || user?.email,
+        updated_at: new Date().toISOString()
+      }))
+
+      for (const update of updates) {
+        const { error } = await supabase
+          .from('settings')
+          .update({
+            value: update.value,
+            updated_by: update.updated_by,
+            updated_at: update.updated_at
+          })
+          .eq('key', update.key)
+
+        if (error) throw error
+      }
+
+      toast.success('Pengaturan berhasil diperbarui')
+      setIsEditingSettings(false)
+    } catch (error) {
+      console.error('Error updating settings:', error)
+      toast.error('Gagal memperbarui pengaturan')
+    } finally {
+      setIsSaving(false)
     }
   }
 
@@ -561,6 +635,153 @@ const ProfilePage = () => {
                 </div>
               </CardContent>
             </Card>
+
+            {/* App Settings - Only for bendahara/admin */}
+            {(profile?.role === 'bendahara' || profile?.role === 'admin') && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center justify-between">
+                    <span className="flex items-center">
+                      <Settings className="w-5 h-5 mr-2" />
+                      Pengaturan Aplikasi
+                    </span>
+                    {isEditingSettings ? (
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setIsEditingSettings(false)
+                            fetchSettings() // Reset to original values
+                          }}
+                        >
+                          Batal
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={updateSettings}
+                          disabled={isSaving}
+                        >
+                          {isSaving ? 'Menyimpan...' : 'Simpan'}
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setIsEditingSettings(true)}
+                      >
+                        <Edit className="w-4 h-4 mr-2" />
+                        Edit
+                      </Button>
+                    )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nama Aplikasi
+                    </label>
+                    {isEditingSettings ? (
+                      <input
+                        type="text"
+                        value={settings.app_name?.value || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          app_name: { ...settings.app_name, value: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">{settings.app_name?.value || '-'}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">{settings.app_name?.description}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nama Kelas
+                    </label>
+                    {isEditingSettings ? (
+                      <input
+                        type="text"
+                        value={settings.class_name?.value || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          class_name: { ...settings.class_name, value: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">{settings.class_name?.value || '-'}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">{settings.class_name?.description}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Iuran Bulanan Default
+                    </label>
+                    {isEditingSettings ? (
+                      <input
+                        type="number"
+                        value={settings.monthly_fee?.value || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          monthly_fee: { ...settings.monthly_fee, value: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">
+                        Rp {parseInt(settings.monthly_fee?.value || '0').toLocaleString('id-ID')}
+                      </p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">{settings.monthly_fee?.description}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nama Bendahara
+                    </label>
+                    {isEditingSettings ? (
+                      <input
+                        type="text"
+                        value={settings.treasurer_name?.value || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          treasurer_name: { ...settings.treasurer_name, value: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">{settings.treasurer_name?.value || '-'}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">{settings.treasurer_name?.description}</p>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      No. HP Bendahara
+                    </label>
+                    {isEditingSettings ? (
+                      <input
+                        type="text"
+                        value={settings.treasurer_phone?.value || ''}
+                        onChange={(e) => setSettings({
+                          ...settings,
+                          treasurer_phone: { ...settings.treasurer_phone, value: e.target.value }
+                        })}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      />
+                    ) : (
+                      <p className="text-sm text-gray-900">{settings.treasurer_phone?.value || '-'}</p>
+                    )}
+                    <p className="text-xs text-gray-500 mt-1">{settings.treasurer_phone?.description}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
           </div>
         </div>
 

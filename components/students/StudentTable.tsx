@@ -130,10 +130,6 @@ const StudentTable: React.FC<StudentTableProps> = ({
             </p>
           </div>
           <div className="flex items-center space-x-2">
-            <Button variant="outline" size="sm" onClick={handleExport}>
-              <Download className="w-4 h-4 mr-2" />
-              Export
-            </Button>
             <Button onClick={onAdd}>
               <Plus className="w-4 h-4 mr-2" />
               Tambah Siswa

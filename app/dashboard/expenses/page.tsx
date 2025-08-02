@@ -5,6 +5,9 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { supabase } from '@/lib/supabase'
+import { expenseService } from '@/lib/expense-service'
+import toast from 'react-hot-toast'
 import { 
   Plus, 
   Search, 
@@ -23,70 +26,82 @@ interface Expense {
   id: string
   description: string
   amount: number
-  category: string
+  category_id: string
+  category?: {
+    name: string
+  }
   date: string
   receipt_url?: string
   created_by: string
+  created_by_user?: {
+    full_name: string
+  }
   status: 'pending' | 'approved' | 'rejected'
   notes?: string
+  created_at: string
 }
 
-// Sample data
-const sampleExpenses: Expense[] = [
-  {
-    id: '1',
-    description: 'Pembelian alat tulis kelas (pensil, penghapus, spidol)',
-    amount: 125000,
-    category: 'Alat Tulis',
-    date: '2024-01-15',
-    created_by: 'Ibu Sari',
-    status: 'approved',
-    notes: 'Untuk kebutuhan kegiatan belajar mengajar'
-  },
-  {
-    id: '2', 
-    description: 'Dekorasi kelas tema "Cinta Lingkungan"',
-    amount: 75000,
-    category: 'Dekorasi',
-    date: '2024-01-12',
-    created_by: 'Ibu Sari',
-    status: 'approved'
-  },
-  {
-    id: '3',
-    description: 'Snack untuk acara perpisahan semester',
-    amount: 200000,
-    category: 'Konsumsi',
-    date: '2024-01-10',
-    created_by: 'Ibu Sari', 
-    status: 'pending',
-    notes: 'Menunggu persetujuan komite orang tua'
-  },
-  {
-    id: '4',
-    description: 'Hadiah untuk juara lomba kebersihan kelas',
-    amount: 50000,
-    category: 'Hadiah',
-    date: '2024-01-08',
-    created_by: 'Ibu Sari',
-    status: 'approved'
-  }
-]
-
 const ExpensesPage = () => {
-  const [expenses, setExpenses] = useState<Expense[]>(sampleExpenses)
+  const [expenses, setExpenses] = useState<Expense[]>([])
   const [searchTerm, setSearchTerm] = useState('')
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'approved' | 'rejected'>('all')
   const [filterCategory, setFilterCategory] = useState<string>('all')
   const [showAddModal, setShowAddModal] = useState(false)
+  const [loading, setLoading] = useState(true)
+  const [categories, setCategories] = useState<Array<{id: string, name: string}>>([])
 
-  const categories = ['Alat Tulis', 'Dekorasi', 'Konsumsi', 'Hadiah', 'Lainnya']
+  useEffect(() => {
+    fetchExpenses()
+    fetchCategories()
+  }, [])
+
+  const fetchExpenses = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('expenses')
+        .select(`
+          *,
+          category:expense_categories(name),
+          created_by_user:users(full_name)
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        toast.error('Gagal memuat data pengeluaran')
+        console.error(error)
+      } else {
+        setExpenses(data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching expenses:', error)
+      toast.error('Terjadi kesalahan saat memuat data')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const fetchCategories = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('expense_categories')
+        .select('id, name')
+        .eq('is_active', true)
+        .order('name')
+
+      if (!error && data) {
+        setCategories(data)
+      }
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+    }
+  }
 
   const filteredExpenses = expenses.filter(expense => {
     const matchesSearch = expense.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         expense.category.toLowerCase().includes(searchTerm.toLowerCase())
+                         expense.category?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false
     const matchesStatus = filterStatus === 'all' || expense.status === filterStatus
-    const matchesCategory = filterCategory === 'all' || expense.category === filterCategory
+    const matchesCategory = filterCategory === 'all' || expense.category_id === filterCategory
     
     return matchesSearch && matchesStatus && matchesCategory
   })
@@ -239,11 +254,11 @@ const ExpensesPage = () => {
                   onChange={(e) => setFilterCategory(e.target.value)}
                   className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
-                  <option value="all">Semua Kategori</option>
-                  {categories.map(category => (
-                    <option key={category} value={category}>{category}</option>
-                  ))}
-                </select>
+                                  <option value="all">Semua Kategori</option>
+                {categories.map(category => (
+                  <option key={category.id} value={category.id}>{category.name}</option>
+                ))}
+              </select>
               </div>
             </div>
           </CardContent>
@@ -256,7 +271,12 @@ const ExpensesPage = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {filteredExpenses.length === 0 ? (
+              {loading ? (
+                <div className="flex items-center justify-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+                  <span className="ml-2 text-gray-600">Memuat data pengeluaran...</span>
+                </div>
+              ) : filteredExpenses.length === 0 ? (
                 <div className="text-center py-8">
                   <Receipt className="w-12 h-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-500">Tidak ada pengeluaran yang ditemukan</p>
@@ -277,9 +297,9 @@ const ExpensesPage = () => {
                           </span>
                           <span className="flex items-center">
                             <DollarSign className="w-4 h-4 mr-1" />
-                            Kategori: {expense.category}
+                            Kategori: {expense.category?.name || 'Uncategorized'}
                           </span>
-                          <span>Oleh: {expense.created_by}</span>
+                          <span>Oleh: {expense.created_by_user?.full_name || 'Unknown'}</span>
                         </div>
                         {expense.notes && (
                           <p className="text-sm text-gray-600 mt-2 italic">{expense.notes}</p>
@@ -349,7 +369,7 @@ const ExpensesPage = () => {
                     <select className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
                       <option value="">Pilih kategori...</option>
                       {categories.map(category => (
-                        <option key={category} value={category}>{category}</option>
+                        <option key={category.id} value={category.id}>{category.name}</option>
                       ))}
                     </select>
                   </div>

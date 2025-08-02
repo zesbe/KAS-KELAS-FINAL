@@ -17,184 +17,48 @@ import {
   RefreshCw
 } from 'lucide-react'
 import { Payment } from '@/lib/supabase'
+import { supabase } from '@/lib/supabase'
 import { currencyUtils } from '@/lib/utils'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 import { Calendar } from 'lucide-react'
 
-// Sample data - in real app, this would come from Supabase
-const samplePayments: Payment[] = [
-  {
-    id: '1',
-    student_id: '1',
-    category_id: '1',
-    amount: 25000,
-    order_id: 'KAS202408001',
-    status: 'completed',
-    payment_method: 'qris',
-    pakasir_payment_url: 'https://pakasir.zone.id/pay/uangkasalhusna/25000?order_id=KAS202408001',
-    due_date: '2024-08-05',
-    completed_at: '2024-08-03T10:30:00.000Z',
-    created_at: '2024-08-01T00:00:00.000Z',
-    updated_at: '2024-08-03T10:30:00.000Z',
-    student: {
-      id: '1',
-      nama: 'Ahmad Rizki Pratama',
-      nomor_absen: 1,
-      nomor_hp_ortu: '628123456789',
-      nama_ortu: 'Budi Santoso',
-      email_ortu: 'budi.santoso@email.com',
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z',
-      updated_at: '2024-01-15T00:00:00.000Z'
-    },
-    category: {
-      id: '1',
-      name: 'Kas Bulanan',
-      description: 'Iuran kas bulanan siswa',
-      default_amount: 25000,
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z'
-    }
-  },
-  {
-    id: '2',
-    student_id: '2',
-    category_id: '1',
-    amount: 25000,
-    order_id: 'KAS202408002',
-    status: 'pending',
-    pakasir_payment_url: 'https://pakasir.zone.id/pay/uangkasalhusna/25000?order_id=KAS202408002',
-    due_date: '2024-08-05',
-    created_at: '2024-08-01T00:00:00.000Z',
-    updated_at: '2024-08-01T00:00:00.000Z',
-    student: {
-      id: '2',
-      nama: 'Siti Nurhaliza',
-      nomor_absen: 2,
-      nomor_hp_ortu: '628234567890',
-      nama_ortu: 'Sari Dewi',
-      email_ortu: 'sari.dewi@email.com',
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z',
-      updated_at: '2024-01-15T00:00:00.000Z'
-    },
-    category: {
-      id: '1',
-      name: 'Kas Bulanan',
-      description: 'Iuran kas bulanan siswa',
-      default_amount: 25000,
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z'
-    }
-  },
-  {
-    id: '3',
-    student_id: '3',
-    category_id: '1',
-    amount: 25000,
-    order_id: 'KAS202408003',
-    status: 'pending',
-    pakasir_payment_url: 'https://pakasir.zone.id/pay/uangkasalhusna/25000?order_id=KAS202408003',
-    due_date: '2024-08-02',
-    created_at: '2024-08-01T00:00:00.000Z',
-    updated_at: '2024-08-01T00:00:00.000Z',
-    student: {
-      id: '3',
-      nama: 'Muhammad Fajar',
-      nomor_absen: 3,
-      nomor_hp_ortu: '628345678901',
-      nama_ortu: 'Andi Wijaya',
-      email_ortu: 'andi.wijaya@email.com',
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z',
-      updated_at: '2024-01-15T00:00:00.000Z'
-    },
-    category: {
-      id: '1',
-      name: 'Kas Bulanan',
-      description: 'Iuran kas bulanan siswa',
-      default_amount: 25000,
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z'
-    }
-  },
-  {
-    id: '4',
-    student_id: '4',
-    category_id: '1',
-    amount: 25000,
-    order_id: 'KAS202408004',
-    status: 'completed',
-    payment_method: 'bank_transfer',
-    pakasir_payment_url: 'https://pakasir.zone.id/pay/uangkasalhusna/25000?order_id=KAS202408004',
-    due_date: '2024-08-05',
-    completed_at: '2024-08-04T15:20:00.000Z',
-    created_at: '2024-08-01T00:00:00.000Z',
-    updated_at: '2024-08-04T15:20:00.000Z',
-    student: {
-      id: '4',
-      nama: 'Aisyah Putri',
-      nomor_absen: 4,
-      nomor_hp_ortu: '628456789012',
-      nama_ortu: 'Indah Permata',
-      email_ortu: 'indah.permata@email.com',
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z',
-      updated_at: '2024-01-15T00:00:00.000Z'
-    },
-    category: {
-      id: '1',
-      name: 'Kas Bulanan',
-      description: 'Iuran kas bulanan siswa',
-      default_amount: 25000,
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z'
-    }
-  },
-  {
-    id: '5',
-    student_id: '5',
-    category_id: '1',
-    amount: 25000,
-    order_id: 'KAS202408005',
-    status: 'failed',
-    pakasir_payment_url: 'https://pakasir.zone.id/pay/uangkasalhusna/25000?order_id=KAS202408005',
-    due_date: '2024-08-05',
-    created_at: '2024-08-01T00:00:00.000Z',
-    updated_at: '2024-08-04T12:00:00.000Z',
-    student: {
-      id: '5',
-      nama: 'Rizky Ramadhan',
-      nomor_absen: 5,
-      nomor_hp_ortu: '628567890123',
-      nama_ortu: 'Agus Setiawan',
-      email_ortu: 'agus.setiawan@email.com',
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z',
-      updated_at: '2024-01-15T00:00:00.000Z'
-    },
-    category: {
-      id: '1',
-      name: 'Kas Bulanan',
-      description: 'Iuran kas bulanan siswa',
-      default_amount: 25000,
-      is_active: true,
-      created_at: '2024-01-15T00:00:00.000Z'
+const PaymentsPage: React.FC = () => {
+  const [payments, setPayments] = useState<Payment[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetchPayments()
+  }, [])
+
+  const fetchPayments = async () => {
+    setLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('payments')
+        .select(`
+          *,
+          student:students(*),
+          category:payment_categories(*)
+        `)
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        toast.error('Gagal memuat data pembayaran')
+        console.error(error)
+      } else {
+        setPayments(data || [])
+      }
+    } catch (error) {
+      console.error('Error fetching payments:', error)
+      toast.error('Terjadi kesalahan saat memuat data')
+    } finally {
+      setLoading(false)
     }
   }
-]
-
-const PaymentsPage: React.FC = () => {
-  const [payments, setPayments] = useState<Payment[]>(samplePayments)
-  const [loading, setLoading] = useState(false)
 
   const handleRefresh = async () => {
-    setLoading(true)
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1000))
-    // In real app, fetch payments from Supabase
-    setLoading(false)
+    await fetchPayments()
     toast.success('Data pembayaran berhasil diperbarui!')
   }
 
@@ -232,30 +96,9 @@ const PaymentsPage: React.FC = () => {
       return
     }
     
-    // Simulate sending WhatsApp reminders
-    setLoading(true)
-    
-    try {
-      // Simulate API call to WhatsApp gateway
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      
-      // Update payment status to show reminder sent
-      setPayments(prev => prev.map(payment => {
-        if (overdueList.some(overdue => overdue.id === payment.id)) {
-          return {
-            ...payment,
-            reminder_sent_at: new Date().toISOString()
-          }
-        }
-        return payment
-      }))
-      
-      toast.success(`✅ Reminder WhatsApp berhasil dikirim ke ${overdueList.length} orang tua`)
-    } catch (error) {
-      toast.error('Gagal mengirim reminder. Silakan coba lagi.')
-    } finally {
-      setLoading(false)
-    }
+    // Navigate to WhatsApp broadcast page with overdue payments
+    const studentIds = overdueList.map(p => p.student_id).join(',')
+    window.location.href = `/dashboard/whatsapp?type=overdue&students=${studentIds}`
   }
 
   return (
