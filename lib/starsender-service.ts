@@ -40,10 +40,14 @@ class StarSenderService {
   
   // Get API keys from settings
   async getApiKeys(): Promise<{ accountKey: string; deviceKey: string }> {
-    const settings = await settingsService.getWhatsAppSettings()
+    const { data: settings } = await settingsService.getSettingsAsObject([
+      'starsender_account_key',
+      'starsender_device_key'
+    ])
+    
     return {
-      accountKey: settings.apiKey || '', // Account API key for campaigns
-      deviceKey: settings.deviceApiKey || '' // Device API key for sending messages
+      accountKey: settings?.starsender_account_key || '', // Account API key for campaigns
+      deviceKey: settings?.starsender_device_key || '' // Device API key for sending messages
     }
   }
 
