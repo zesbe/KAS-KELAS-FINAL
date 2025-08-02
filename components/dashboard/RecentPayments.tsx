@@ -51,29 +51,59 @@ const RecentPayments = () => {
           payment_method,
           completed_at,
           created_at,
-          students!payments_student_id_fkey(nama, kelas),
-          payment_categories!payments_category_id_fkey(name)
+          student_id,
+          category_id
         `)
         .order('created_at', { ascending: false })
         .limit(5)
 
       if (error) throw error
 
+      if (!data || data.length === 0) {
+        setPayments([])
+        return
+      }
+
+      // Get unique student and category IDs
+      const studentIds = [...new Set(data.map(p => p.student_id).filter(Boolean))]
+      const categoryIds = [...new Set(data.map(p => p.category_id).filter(Boolean))]
+
+      // Fetch students
+      let studentsMap: any = {}
+      if (studentIds.length > 0) {
+        const { data: students } = await supabase
+          .from('students')
+          .select('id, nama, kelas')
+          .in('id', studentIds)
+        
+        if (students) {
+          studentsMap = students.reduce((acc, s) => ({ ...acc, [s.id]: s }), {})
+        }
+      }
+
+      // Fetch categories
+      let categoriesMap: any = {}
+      if (categoryIds.length > 0) {
+        const { data: categories } = await supabase
+          .from('payment_categories')
+          .select('id, name')
+          .in('id', categoryIds)
+        
+        if (categories) {
+          categoriesMap = categories.reduce((acc, c) => ({ ...acc, [c.id]: c }), {})
+        }
+      }
+
       // Transform the data to match the expected format
-      const transformedData = (data || []).map((payment: any) => ({
+      const transformedData = data.map((payment: any) => ({
         id: payment.id,
         amount: payment.amount,
         status: payment.status,
         payment_method: payment.payment_method,
         completed_at: payment.completed_at,
         created_at: payment.created_at,
-        student: {
-          nama: payment.students?.nama || 'Unknown',
-          kelas: payment.students?.kelas || 'Unknown'
-        },
-        category: {
-          name: payment.payment_categories?.name || 'Unknown'
-        }
+        student: studentsMap[payment.student_id] || { nama: 'Unknown', kelas: '-' },
+        category: categoriesMap[payment.category_id] || { name: 'Unknown' }
       }))
 
       setPayments(transformedData)

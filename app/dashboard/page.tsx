@@ -29,6 +29,7 @@ import {
 } from 'lucide-react'
 import { currencyUtils, dateUtils } from '@/lib/utils'
 import toast from 'react-hot-toast'
+import { SkeletonDashboard } from '@/components/ui/Skeleton'
 
 interface DashboardData {
   balance: BalanceData
@@ -89,6 +90,10 @@ const DashboardPage: React.FC = () => {
   const loadDashboardData = async () => {
     console.log('Loading dashboard data...')
     console.log('Supabase URL:', process.env.NEXT_PUBLIC_SUPABASE_URL)
+    
+    // Test connection first
+    const { testSupabaseConnection } = await import('@/lib/supabase-debug')
+    await testSupabaseConnection()
     
     try {
       setLoading(true)
@@ -247,14 +252,7 @@ const DashboardPage: React.FC = () => {
   if (loading || !dashboardData) {
     return (
       <DashboardLayout>
-        <div className="space-y-6">
-          <div className="flex items-center justify-center h-64">
-            <div className="text-center">
-              <RefreshCw className="w-8 h-8 animate-spin mx-auto mb-4 text-blue-600" />
-              <p className="text-gray-600">Memuat data dashboard...</p>
-            </div>
-          </div>
-        </div>
+        <SkeletonDashboard />
       </DashboardLayout>
     )
   }

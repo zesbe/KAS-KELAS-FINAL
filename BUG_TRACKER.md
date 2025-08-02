@@ -13,11 +13,14 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
 ### 🔴 Critical Bugs
 1. **[BUG-001]** Koneksi Supabase
    - **Deskripsi**: Aplikasi mungkin belum terhubung dengan benar ke Supabase
-   - **Status**: ⏳ Pending
+   - **Status**: ✅ FIXED
    - **Langkah Reproduksi**: 
      1. Jalankan aplikasi
      2. Cek console untuk error koneksi
-   - **Solusi**: Pastikan environment variables sudah benar di `.env.local`
+   - **Solusi**: 
+     - Membuat supabase-debug.ts untuk testing koneksi
+     - Menambahkan debug logging di dashboard
+     - Environment variables harus diset dengan benar
 
 2. **[BUG-007]** Infinite Loop Toast "Data berhasil dimuat"
    - **Deskripsi**: Popup toast muncul terus menerus di dashboard
@@ -40,8 +43,11 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
 
 3. **[BUG-004]** Data Fetching
    - **Deskripsi**: Query data mungkin error atau tidak optimal
-   - **Status**: ⏳ Pending
-   - **Solusi**: Review dan perbaiki semua query Supabase
+   - **Status**: ✅ FIXED
+   - **Solusi**: 
+     - Memperbaiki query di RecentPayments dengan fetch terpisah
+     - Menambahkan proper error handling
+     - Menambahkan null checks dan fallback values
 
 ### 🟢 Minor Bugs
 1. **[BUG-005]** UI Responsiveness
@@ -51,8 +57,12 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
 
 2. **[BUG-006]** Error Handling
    - **Deskripsi**: Error messages mungkin tidak user-friendly
-   - **Status**: ⏳ Pending
-   - **Solusi**: Implementasi proper error handling dan toast notifications
+   - **Status**: ✅ FIXED
+   - **Solusi**: 
+     - Membuat ErrorBoundary component
+     - Membuat useErrorHandler hook
+     - Menambahkan skeleton loader untuk better UX
+     - Error messages yang lebih user-friendly
 
 ## Fixed Bugs
 
@@ -74,6 +84,27 @@ Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita ak
      - Implementasi validateSession dari database di AuthProvider
      - Session token disimpan ke tabel user_sessions
      - Auto cleanup expired sessions
+
+4. **[BUG-001]** Koneksi Supabase - *Fixed on 02/08/2025*
+   - **Masalah**: Tidak ada cara untuk debug koneksi Supabase
+   - **Solusi**: 
+     - Membuat supabase-debug.ts untuk testing
+     - Menambahkan connection test di dashboard
+     - Better error logging
+
+5. **[BUG-004]** Data Fetching - *Fixed on 02/08/2025*
+   - **Masalah**: Query joins tidak berfungsi dengan baik
+   - **Solusi**: 
+     - Refactor query untuk fetch data terpisah
+     - Menambahkan proper null checks
+     - Better data transformation
+
+6. **[BUG-006]** Error Handling - *Fixed on 02/08/2025*
+   - **Masalah**: Error tidak ditangani dengan baik
+   - **Solusi**: 
+     - ErrorBoundary component untuk catch errors
+     - useErrorHandler hook untuk consistent error handling
+     - Skeleton loaders untuk better UX
 
 ## Bug Resolution Process
 
