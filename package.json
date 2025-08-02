@@ -7,16 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "typecheck": "tsc --noEmit",
-    "db:up": "docker-compose up -d",
-    "db:down": "docker-compose down",
-    "db:reset": "docker-compose down -v && docker-compose up -d",
-    "db:migrate": "ts-node lib/db-migrate.ts up",
-    "db:rollback": "ts-node lib/db-migrate.ts down",
-    "db:status": "ts-node lib/db-migrate.ts status",
-    "db:psql": "docker exec -it kas_kelas_postgres psql -U postgres -d kas_kelas_db",
-    "db:backup": "docker exec kas_kelas_postgres pg_dump -U postgres kas_kelas_db > backup-$(date +%Y%m%d-%H%M%S).sql",
-    "db:logs": "docker-compose logs -f postgres"
+    "typecheck": "tsc --noEmit"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
@@ -25,7 +16,6 @@
     "@supabase/auth-helpers-react": "^0.4.2",
     "@supabase/supabase-js": "^2.38.0",
     "@tailwindcss/forms": "^0.5.6",
-    "@types/pg": "^8.11.10",
     "autoprefixer": "^10.4.14",
     "clsx": "^2.0.0",
     "date-fns": "^2.30.0",
@@ -36,7 +26,6 @@
     "lucide-react": "^0.263.1",
     "next": "^14.2.31",
     "node-fetch": "^2.7.0",
-    "pg": "^8.13.1",
     "postcss": "^8.4.24",
     "react": "^18",
     "react-dom": "^18",
@@ -54,7 +43,6 @@
     "@types/react-dom": "^18",
     "eslint": "^8",
     "eslint-config-next": "14.2.5",
-    "ts-node": "^10.9.2",
     "typescript": "^5"
   }
 }

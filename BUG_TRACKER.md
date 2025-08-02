@@ -1,105 +1,153 @@
 # Bug Tracker - Kas Kelas Application
 
 ## Overview
-This document tracks all known bugs and their resolution status. We'll fix them one by one systematically.
+Dokumen ini melacak semua bug yang diketahui dan status penyelesaiannya. Kita akan memperbaiki satu per satu secara sistematis.
 
 ## Bug Categories
-- 🔴 **Critical**: Application breaking bugs
-- 🟡 **Major**: Features not working correctly
-- 🟢 **Minor**: UI/UX issues or small inconsistencies
+- 🔴 **Critical**: Bug yang membuat aplikasi tidak bisa digunakan
+- 🟡 **Major**: Fitur tidak berfungsi dengan benar
+- 🟢 **Minor**: Masalah UI/UX atau inkonsistensi kecil
 
 ## Active Bugs
 
 ### 🔴 Critical Bugs
-1. **[BUG-001]** Database Connection Issues
-   - **Description**: Application might not connect to local PostgreSQL
+1. **[BUG-001]** Koneksi Supabase
+   - **Deskripsi**: Aplikasi mungkin belum terhubung dengan benar ke Supabase
    - **Status**: ⏳ Pending
-   - **Steps to Reproduce**: 
-     1. Start the application
-     2. Check console for connection errors
-   - **Solution**: Update database connection strings in `.env`
+   - **Langkah Reproduksi**: 
+     1. Jalankan aplikasi
+     2. Cek console untuk error koneksi
+   - **Solusi**: Pastikan environment variables sudah benar di `.env.local`
 
 ### 🟡 Major Bugs
-1. **[BUG-002]** Authentication System
-   - **Description**: Login might use Supabase instead of local auth
+1. **[BUG-002]** Sistem Autentikasi
+   - **Deskripsi**: Login menggunakan tabel `app_users` custom, bukan Supabase Auth
    - **Status**: ⏳ Pending
-   - **Solution**: Implement local authentication using `app_users` table
+   - **Solusi**: Implementasi autentikasi custom dengan `app_users` table
 
 2. **[BUG-003]** Session Management
-   - **Description**: Sessions might not persist properly
+   - **Deskripsi**: Session mungkin tidak persist dengan benar
    - **Status**: ⏳ Pending
-   - **Solution**: Implement proper session handling with PostgreSQL
+   - **Solusi**: Implementasi session handling dengan `user_sessions` table
+
+3. **[BUG-004]** Data Fetching
+   - **Deskripsi**: Query data mungkin error atau tidak optimal
+   - **Status**: ⏳ Pending
+   - **Solusi**: Review dan perbaiki semua query Supabase
 
 ### 🟢 Minor Bugs
-1. **[BUG-004]** UI Responsiveness
-   - **Description**: Some pages might not be fully responsive
+1. **[BUG-005]** UI Responsiveness
+   - **Deskripsi**: Beberapa halaman mungkin tidak fully responsive
    - **Status**: ⏳ Pending
-   - **Solution**: Review and fix Tailwind CSS classes
+   - **Solusi**: Review dan fix Tailwind CSS classes
+
+2. **[BUG-006]** Error Handling
+   - **Deskripsi**: Error messages mungkin tidak user-friendly
+   - **Status**: ⏳ Pending
+   - **Solusi**: Implementasi proper error handling dan toast notifications
 
 ## Fixed Bugs
 
 ### ✅ Resolved
-<!-- Move bugs here once fixed -->
+<!-- Pindahkan bug ke sini setelah diperbaiki -->
 
 ## Bug Resolution Process
 
-1. **Identify**: Run the application and identify the bug
-2. **Document**: Add the bug to this tracker with details
-3. **Prioritize**: Assign appropriate severity level
-4. **Debug**: Use console logs, debugger, and PostgreSQL logs
-5. **Fix**: Implement the solution
-6. **Test**: Verify the fix works correctly
-7. **Update**: Move bug to "Resolved" section
+1. **Identifikasi**: Jalankan aplikasi dan identifikasi bug
+2. **Dokumentasi**: Tambahkan bug ke tracker dengan detail
+3. **Prioritas**: Tentukan tingkat severity
+4. **Debug**: Gunakan console logs dan Supabase Dashboard
+5. **Fix**: Implementasi solusi
+6. **Test**: Verifikasi fix berfungsi dengan benar
+7. **Update**: Pindahkan bug ke bagian "Resolved"
 
 ## Debugging Commands
 
 ```bash
-# Start development environment
-./start-dev.sh
+# Install dependencies
+npm install
 
-# View application logs
+# Jalankan development server
 npm run dev
 
-# View database logs
-npm run db:logs
+# Build untuk production
+npm run build
 
-# Connect to PostgreSQL directly
-npm run db:psql
+# Check TypeScript errors
+npm run typecheck
 
-# Check database status
-docker-compose ps
-
-# Reset database (if needed)
-npm run db:reset
+# Run linter
+npm run lint
 ```
+
+## Supabase Debugging Tips
+
+### Melihat Logs di Supabase Dashboard
+1. Login ke [Supabase Dashboard](https://app.supabase.com)
+2. Pilih project Anda
+3. Pergi ke **Logs** > **API Logs** untuk melihat request
+4. Pergi ke **Logs** > **Postgres Logs** untuk melihat query database
+
+### Test Koneksi Database
+Buat file `test-supabase.js`:
+```javascript
+const { createClient } = require('@supabase/supabase-js')
+require('dotenv').config({ path: '.env.local' })
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+)
+
+async function testConnection() {
+  // Test query ke app_users
+  const { data, error } = await supabase
+    .from('app_users')
+    .select('*')
+    .limit(1)
+  
+  if (error) {
+    console.error('Error:', error)
+  } else {
+    console.log('Connection successful!')
+    console.log('Sample data:', data)
+  }
+}
+
+testConnection()
+```
+
+Jalankan: `node test-supabase.js`
 
 ## Common Issues & Solutions
 
-### Port Already in Use
-```bash
-# Kill process on port 3000
-lsof -ti:3000 | xargs kill -9
+### Error: relation "table_name" does not exist
+- Pastikan sudah menjalankan semua script SQL di Supabase SQL Editor
+- Cek nama tabel sudah benar (case sensitive)
 
-# Kill process on port 5432
-lsof -ti:5432 | xargs kill -9
-```
+### Error: Invalid API key
+- Periksa API keys di Supabase Dashboard > Settings > API
+- Pastikan menggunakan key yang benar:
+  - `NEXT_PUBLIC_SUPABASE_ANON_KEY` untuk client-side
+  - `SUPABASE_SERVICE_ROLE_KEY` untuk server-side
 
-### Database Connection Failed
-1. Check if Docker is running
-2. Verify `.env` file has correct credentials
-3. Ensure PostgreSQL container is healthy
-4. Check firewall settings
+### Error: CORS
+- Tambahkan `http://localhost:3000` di Supabase Dashboard > Authentication > URL Configuration
 
-### Module Not Found Errors
-```bash
-# Clear cache and reinstall
-rm -rf node_modules package-lock.json
-npm install
-```
+### Error: JWT expired
+- Session token expired, user perlu login ulang
+- Implementasi auto-refresh token jika diperlukan
+
+## Environment Variables Checklist
+Pastikan semua environment variables sudah diset di `.env.local`:
+- [ ] `NEXT_PUBLIC_SUPABASE_URL`
+- [ ] `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- [ ] `SUPABASE_SERVICE_ROLE_KEY`
+- [ ] `DATABASE_URL` (jika diperlukan untuk migrations)
 
 ## Next Steps
-1. Start the development environment
-2. Test each feature systematically
-3. Document any new bugs found
-4. Fix bugs in order of priority
-5. Update this tracker as bugs are resolved
+1. Setup environment variables di `.env.local`
+2. Jalankan semua SQL scripts di Supabase
+3. Test koneksi dengan `test-supabase.js`
+4. Jalankan aplikasi dengan `npm run dev`
+5. Identifikasi dan fix bugs satu per satu
