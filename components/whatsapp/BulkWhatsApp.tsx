@@ -172,9 +172,9 @@ const BulkWhatsApp = () => {
       
       if (broadcastType === 'campaign') {
         // Create campaign first
-        const { deviceApiKey } = await starSenderService.getApiKeys()
+        const { deviceKey } = await starSenderService.getApiKeys()
         const campaignData = {
-          device_api_key: deviceApiKey,
+          device_api_key: deviceKey,
           name: campaignName,
           syntax: 'Broadcast',
           welcome_message: message,

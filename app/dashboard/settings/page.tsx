@@ -106,8 +106,8 @@ const SettingsPage = () => {
         setIntegrationSettings({
           pakasir_api_key: settingsData.pakasir_api_key || '',
           pakasir_slug: settingsData.pakasir_slug || '',
-          wapanels_app_key: settingsData.wapanels_app_key || '',
-          wapanels_auth_key: settingsData.wapanels_auth_key || ''
+          starsender_account_key: settingsData.starsender_account_key || '',
+          starsender_device_key: settingsData.starsender_device_key || ''
         })
 
         // Notification settings
