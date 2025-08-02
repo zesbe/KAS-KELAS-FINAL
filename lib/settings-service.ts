@@ -18,10 +18,22 @@ export class SettingsService {
   private supabase = supabase
 
   // Get all settings
-  async getAllSettings(): Promise<{ data: Settings[] | null; error: any }> {
+  async getAllSettings(): Promise<{ data: Record<string, string> | null; error: any }> {
     try {
-      const result = await supabaseHelpers.getSettings(this.supabase)
-      return result
+      const { data, error } = await this.supabase
+        .from('settings')
+        .select('*')
+        .order('key')
+      
+      if (error) throw error
+      
+      // Convert array to key-value object
+      const settingsObj = data?.reduce((acc: any, setting: any) => {
+        acc[setting.key] = setting.value
+        return acc
+      }, {} as Record<string, string>) || {}
+      
+      return { data: settingsObj, error: null }
     } catch (error) {
       console.error('Error fetching settings:', error)
       return { data: null, error }
@@ -103,19 +115,52 @@ export class SettingsService {
   // Bulk update settings
   async bulkUpdateSettings(updates: Array<{ key: string; value: string }>, updatedBy?: string): Promise<{ data: Settings[] | null; error: any }> {
     try {
-      const promises = updates.map(update => 
-        this.updateSetting(update.key, update.value, updatedBy)
-      )
+      const results: Settings[] = []
       
-      const results = await Promise.all(promises)
-      const errors = results.filter(r => r.error)
-      
-      if (errors.length > 0) {
-        return { data: null, error: errors[0].error }
+      for (const update of updates) {
+        // Check if setting exists
+        const { data: existing } = await this.supabase
+          .from('settings')
+          .select('id')
+          .eq('key', update.key)
+          .single()
+        
+        if (existing) {
+          // Update existing setting
+          const { data, error } = await this.supabase
+            .from('settings')
+            .update({
+              value: update.value,
+              updated_by: updatedBy,
+              updated_at: new Date().toISOString()
+            })
+            .eq('key', update.key)
+            .select()
+            .single()
+          
+          if (error) throw error
+          if (data) results.push(data)
+        } else {
+          // Create new setting
+          const { data, error } = await this.supabase
+            .from('settings')
+            .insert({
+              key: update.key,
+              value: update.value,
+              type: 'text',
+              updated_by: updatedBy,
+              created_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .select()
+            .single()
+          
+          if (error) throw error
+          if (data) results.push(data)
+        }
       }
       
-      const data = results.map(r => r.data).filter(Boolean) as Settings[]
-      return { data, error: null }
+      return { data: results, error: null }
     } catch (error) {
       console.error('Error bulk updating settings:', error)
       return { data: null, error }
@@ -422,7 +467,10 @@ export class SettingsService {
 
     try {
       // Check existing settings
-      const { data: existingSettings } = await this.getAllSettings()
+      const { data: existingSettings } = await this.supabase
+        .from('settings')
+        .select('key')
+      
       const existingKeys = existingSettings?.map(s => s.key) || []
 
       // Insert only missing settings
