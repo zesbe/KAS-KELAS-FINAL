@@ -2,7 +2,7 @@
 // Configuration from environment variables
 
 export const STARSENDER_CONFIG = {
-  apiUrl: 'https://starsender.online/api/sendText',
+  apiUrl: 'https://api.starsender.online/api/send',
   apiKey: process.env.STARSENDER_API_KEY || '2d8714c0ceb932baf18b44285cb540b294a64871'
 }
 
@@ -38,7 +38,7 @@ ${data.payment_link}
 
 ⚡ *Otomatis terkonfirmasi setelah bayar*
 
-📊 Cek status: https://berbagiakun.com
+📊 Cek status: https://kas-kelas-final.vercel.app
 Terima kasih 🙏`
 }
 
@@ -66,7 +66,7 @@ Terima kasih *${data.nama_siswa}*!
 💳 Via: ${data.payment_method?.toUpperCase()}
 🆔 ID: ${data.order_id}
 
-📊 Status kas: https://berbagiakun.com
+📊 Status kas: https://kas-kelas-final.vercel.app
 Terima kasih 🙏`
 }
 
@@ -78,7 +78,7 @@ export const broadcastTemplate = (title: string, message: string): string => {
 
 ${message}
 
-📊 Info lengkap: https://berbagiakun.com
+📊 Info lengkap: https://kas-kelas-final.vercel.app
 Terima kasih 🙏`
 }
 
@@ -96,12 +96,12 @@ export const monthlyReportTemplate = (
 📉 Pengeluaran: Rp ${totalPengeluaran.toLocaleString('id-ID')}
 💼 Saldo Akhir: Rp ${saldoAkhir.toLocaleString('id-ID')}
 
-📄 Laporan lengkap: https://berbagiakun.com/laporan
+📄 Laporan lengkap: https://kas-kelas-final.vercel.app/dashboard/laporan-keuangan
 
 Terima kasih atas kepercayaan Anda 🙏`
 }
 
-// Format phone number for StarSender API (requires @s.whatsapp.net suffix)
+// Format phone number for StarSender API
 export const formatPhoneNumber = (phone: string): string => {
   // Remove all non-digit characters
   let cleaned = phone.replace(/\D/g, '')
@@ -113,25 +113,32 @@ export const formatPhoneNumber = (phone: string): string => {
     cleaned = '62' + cleaned
   }
   
-  return cleaned + '@s.whatsapp.net'
+  return cleaned
 }
 
 // Send WhatsApp message via StarSender API
 export const sendWhatsAppMessage = async (
   phoneNumber: string,
-  message: string
+  message: string,
+  delay?: number
 ): Promise<any> => {
   try {
     const formattedPhone = formatPhoneNumber(phoneNumber)
     
-    const url = `${STARSENDER_CONFIG.apiUrl}?message=${encodeURIComponent(message)}&tujuan=${encodeURIComponent(formattedPhone)}`
+    const payload = {
+      messageType: 'text',
+      to: formattedPhone,
+      body: message,
+      delay: delay || 0
+    }
     
-    const response = await fetch(url, {
+    const response = await fetch(STARSENDER_CONFIG.apiUrl, {
       method: 'POST',
       headers: {
-        'apikey': STARSENDER_CONFIG.apiKey,
+        'Authorization': STARSENDER_CONFIG.apiKey,
         'Content-Type': 'application/json'
-      }
+      },
+      body: JSON.stringify(payload)
     })
     
     if (!response.ok) {
@@ -141,11 +148,11 @@ export const sendWhatsAppMessage = async (
     const data = await response.json()
     
     // StarSender success response check
-    if (data.status === true || data.success === true) {
+    if (data.success === true) {
       return {
         success: true,
-        data,
-        message: 'Message sent successfully'
+        data: data.data,
+        message: data.message || 'Message sent successfully'
       }
     } else {
       return {
@@ -171,18 +178,18 @@ export const sendBulkWhatsAppMessages = async (
   const results = []
   
   // Send messages with delay to avoid rate limiting
-  for (const recipient of recipients) {
+  for (let i = 0; i < recipients.length; i++) {
+    const recipient = recipients[i]
     try {
-      const result = await sendWhatsAppMessage(recipient.phone, recipient.message)
+      // Add delay for each message (2 seconds between messages)
+      const delay = i * 2
+      const result = await sendWhatsAppMessage(recipient.phone, recipient.message, delay)
       results.push({
         phone: recipient.phone,
         success: result.success,
         response: result.data,
         error: result.success ? undefined : result.message
       })
-      
-      // Add delay between messages (1 second)
-      await new Promise(resolve => setTimeout(resolve, 1000))
     } catch (error) {
       results.push({
         phone: recipient.phone,

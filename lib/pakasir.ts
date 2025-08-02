@@ -5,7 +5,7 @@ export const PAKASIR_CONFIG = {
   slug: process.env.PAKASIR_SLUG || 'uangkasalhusna',
   apiKey: process.env.PAKASIR_API_KEY || 'u8e0CphRmRVuNwDyqnfNoeOwHa6UBpLg',
   baseUrl: process.env.PAKASIR_BASE_URL || 'https://pakasir.zone.id',
-  redirectUrl: process.env.PAKASIR_REDIRECT_URL || 'https://berbagiakun.com'
+  redirectUrl: process.env.PAKASIR_REDIRECT_URL || 'https://kas-kelas-final.vercel.app'
 }
 
 // Generate unique order ID format: KAS + YYYYMM + counter
