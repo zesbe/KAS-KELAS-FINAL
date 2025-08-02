@@ -88,34 +88,35 @@ const SettingsPage = () => {
       
       // Map settings to state
       if (settings.data) {
+        const settingsData = settings.data as any
         // System settings
         setSystemSettings({
-          school_name: settings.data.school_name || '',
-          class_name: settings.data.class_name || '',
-          teacher_name: settings.data.teacher_name || '',
-          phone_number: settings.data.phone_number || '',
-          email: settings.data.email || '',
-          default_payment_amount: settings.data.default_payment_amount || '25000',
-          payment_due_day: settings.data.payment_due_day || '5',
-          currency: settings.data.currency || 'IDR',
-          timezone: settings.data.timezone || 'Asia/Jakarta'
+          school_name: settingsData.school_name || '',
+          class_name: settingsData.class_name || '',
+          teacher_name: settingsData.teacher_name || '',
+          phone_number: settingsData.phone_number || '',
+          email: settingsData.email || '',
+          default_payment_amount: settingsData.default_payment_amount || '25000',
+          payment_due_day: settingsData.payment_due_day || '5',
+          currency: settingsData.currency || 'IDR',
+          timezone: settingsData.timezone || 'Asia/Jakarta'
         })
 
         // Integration settings
         setIntegrationSettings({
-          pakasir_api_key: settings.data.pakasir_api_key || '',
-          pakasir_slug: settings.data.pakasir_slug || '',
-          wapanels_app_key: settings.data.wapanels_app_key || '',
-          wapanels_auth_key: settings.data.wapanels_auth_key || ''
+          pakasir_api_key: settingsData.pakasir_api_key || '',
+          pakasir_slug: settingsData.pakasir_slug || '',
+          wapanels_app_key: settingsData.wapanels_app_key || '',
+          wapanels_auth_key: settingsData.wapanels_auth_key || ''
         })
 
         // Notification settings
         setNotificationSettings({
-          whatsapp_auto_reminders: settings.data.whatsapp_auto_reminders === 'true',
-          whatsapp_auto_confirmations: settings.data.whatsapp_auto_confirmations === 'true',
-          whatsapp_reminder_days_before: parseInt(settings.data.whatsapp_reminder_days_before || '3'),
-          email_notifications: settings.data.email_notifications === 'true',
-          parent_portal_notifications: settings.data.parent_portal_notifications === 'true'
+          whatsapp_auto_reminders: settingsData.whatsapp_auto_reminders === 'true',
+          whatsapp_auto_confirmations: settingsData.whatsapp_auto_confirmations === 'true',
+          whatsapp_reminder_days_before: parseInt(settingsData.whatsapp_reminder_days_before || '3'),
+          email_notifications: settingsData.email_notifications === 'true',
+          parent_portal_notifications: settingsData.parent_portal_notifications === 'true'
         })
       }
     } catch (error) {
@@ -811,11 +812,14 @@ const SettingsPage = () => {
                     className="hidden"
                     id="import-file"
                   />
-                  <label htmlFor="import-file">
-                    <Button variant="outline" size="sm" className="mt-2" as="span">
-                      Pilih File
-                    </Button>
-                  </label>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="mt-2"
+                    onClick={() => document.getElementById('import-file')?.click()}
+                  >
+                    Pilih File
+                  </Button>
                 </div>
               </CardContent>
             </Card>

@@ -117,7 +117,7 @@ const ProfilePage = () => {
 
       // Process payments
       if (payments.data) {
-        payments.data.forEach(p => {
+        payments.data.forEach((p: any) => {
           allActivities.push({
             id: `payment-${p.id}`,
             action: p.status === 'paid' ? 'Pembayaran diterima' : 'Membuat tagihan',
@@ -130,7 +130,7 @@ const ProfilePage = () => {
 
       // Process students
       if (students.data) {
-        students.data.forEach(s => {
+        students.data.forEach((s: any) => {
           allActivities.push({
             id: `student-${s.id}`,
             action: 'Menambah siswa',
@@ -143,7 +143,7 @@ const ProfilePage = () => {
 
       // Process expenses
       if (expenses.data) {
-        expenses.data.forEach(e => {
+        expenses.data.forEach((e: any) => {
           allActivities.push({
             id: `expense-${e.id}`,
             action: 'Mencatat pengeluaran',

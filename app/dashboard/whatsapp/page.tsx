@@ -144,7 +144,7 @@ const WhatsAppPage = () => {
 
       if (error) throw error
 
-      const stats = (data || []).reduce((acc, msg) => {
+      const stats = (data || []).reduce((acc: MessageStats, msg: any) => {
         acc.total++
         if (msg.status === 'sent') acc.sent++
         else if (msg.status === 'delivered') acc.delivered++
