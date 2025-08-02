@@ -186,7 +186,7 @@ const ProfilePage = () => {
 
       // Convert array to object for easier access
       const settingsObj: AppSettings = {}
-      data?.forEach(setting => {
+      data?.forEach((setting: any) => {
         settingsObj[setting.key] = {
           value: setting.value,
           description: setting.description || '',

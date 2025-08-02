@@ -81,8 +81,8 @@ const DashboardPage: React.FC = () => {
         today.setHours(0, 0, 0, 0)
         
         unpaidStudents = unpaidPayments
-          .filter(p => p.student) // Ensure student exists
-          .map(payment => {
+          .filter((p: any) => p.student) // Ensure student exists
+          .map((payment: any) => {
             const dueDate = new Date(payment.due_date)
             const diffTime = today.getTime() - dueDate.getTime()
             const daysOverdue = Math.max(0, Math.ceil(diffTime / (1000 * 60 * 60 * 24)))
