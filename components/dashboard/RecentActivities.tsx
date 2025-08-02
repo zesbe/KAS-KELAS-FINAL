@@ -1,7 +1,8 @@
 'use client'
 
-import React from 'react'
+import React, { useState, useEffect } from 'react'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -12,79 +13,46 @@ import {
   CheckCircle, 
   Clock, 
   AlertCircle,
-  ArrowRight 
+  ArrowRight,
+  RefreshCw
 } from 'lucide-react'
 import { currencyUtils, dateUtils } from '@/lib/utils'
-
-interface Activity {
-  id: string
-  type: 'payment' | 'expense' | 'whatsapp' | 'reminder'
-  title: string
-  description: string
-  amount?: number
-  timestamp: string
-  status?: 'success' | 'pending' | 'failed'
-  studentName?: string
-}
+import { activityService, Activity } from '@/lib/activity-service'
+import toast from 'react-hot-toast'
 
 interface RecentActivitiesProps {
-  activities?: Activity[]
   limit?: number
 }
 
-// Sample data for development
-const sampleActivities: Activity[] = [
-  {
-    id: '1',
-    type: 'payment',
-    title: 'Pembayaran Diterima',
-    description: 'Ahmad Rizki - Kas Bulan Agustus',
-    amount: 25000,
-    timestamp: new Date(Date.now() - 1000 * 60 * 30).toISOString(), // 30 minutes ago
-    status: 'success',
-    studentName: 'Ahmad Rizki'
-  },
-  {
-    id: '2',
-    type: 'whatsapp',
-    title: 'WhatsApp Terkirim',
-    description: 'Reminder pembayaran ke 3 orang tua',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 2).toISOString(), // 2 hours ago
-    status: 'success'
-  },
-  {
-    id: '3',
-    type: 'expense',
-    title: 'Pengeluaran Baru',
-    description: 'Pembelian ATK untuk kelas',
-    amount: 75000,
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 4).toISOString(), // 4 hours ago
-    status: 'pending'
-  },
-  {
-    id: '4',
-    type: 'payment',
-    title: 'Pembayaran Diterima',
-    description: 'Siti Nurhaliza - Kas Bulan Agustus',
-    amount: 25000,
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 6).toISOString(), // 6 hours ago
-    status: 'success',
-    studentName: 'Siti Nurhaliza'
-  },
-  {
-    id: '5',
-    type: 'reminder',
-    title: 'Reminder Terjadwal',
-    description: 'Reminder H-3 untuk 5 siswa',
-    timestamp: new Date(Date.now() - 1000 * 60 * 60 * 8).toISOString(), // 8 hours ago
-    status: 'success'
-  }
-]
-
 const RecentActivities: React.FC<RecentActivitiesProps> = ({
-  activities = sampleActivities,
   limit = 5
 }) => {
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [activityCount, setActivityCount] = useState(0)
+  const [loading, setLoading] = useState(true)
+  const router = useRouter()
+
+  const loadActivities = async () => {
+    try {
+      setLoading(true)
+      const [fetchedActivities, count] = await Promise.all([
+        activityService.getRecentActivities(limit),
+        activityService.getActivityCount()
+      ])
+      setActivities(fetchedActivities)
+      setActivityCount(count)
+    } catch (error) {
+      console.error('Error loading activities:', error)
+      toast.error('Gagal memuat aktivitas')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadActivities()
+  }, [limit])
+
   const getActivityIcon = (type: Activity['type']) => {
     switch (type) {
       case 'payment':
@@ -131,7 +99,10 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
     }
   }
 
-  const displayedActivities = activities.slice(0, limit)
+  const handleViewAll = () => {
+    // Navigate to activities page
+    router.push('/dashboard/activities')
+  }
 
   return (
     <Card>
@@ -139,59 +110,76 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
         <div>
           <CardTitle>Aktivitas Terbaru</CardTitle>
           <p className="text-sm text-gray-600 mt-1">
-            {activities.length} aktivitas dalam 24 jam terakhir
+            {activityCount} aktivitas dalam 24 jam terakhir
           </p>
         </div>
-        <Link href="/dashboard/activities">
-          <Button variant="ghost" size="sm">
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={loadActivities}
+            disabled={loading}
+          >
+            <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
+          </Button>
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={handleViewAll}
+          >
             Lihat Semua
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
-        </Link>
+        </div>
       </CardHeader>
       <CardContent>
         <div className="space-y-4">
-          {displayedActivities.map((activity) => {
-            const Icon = getActivityIcon(activity.type)
-            const colorClasses = getActivityColor(activity.type, activity.status)
-            
-            return (
-              <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
-                <div className={`p-2 rounded-full ${colorClasses}`}>
-                  <Icon className="w-4 h-4" />
-                </div>
-                
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between">
-                    <p className="text-sm font-medium text-gray-900 truncate">
-                      {activity.title}
-                    </p>
-                    <div className="flex items-center space-x-2">
-                      {activity.amount && (
-                        <span className={`text-xs font-medium ${
-                          activity.type === 'payment' ? 'text-green-600' : 'text-red-600'
-                        }`}>
-                          {activity.type === 'payment' ? '+' : '-'}
-                          {currencyUtils.format(activity.amount)}
-                        </span>
-                      )}
-                      {getStatusBadge(activity.status)}
-                    </div>
+          {loading ? (
+            <div className="text-center py-8">
+              <RefreshCw className="w-8 h-8 animate-spin text-gray-400 mx-auto mb-2" />
+              <p className="text-sm text-gray-500">Memuat aktivitas...</p>
+            </div>
+          ) : activities.length > 0 ? (
+            activities.map((activity) => {
+              const Icon = getActivityIcon(activity.type)
+              const colorClasses = getActivityColor(activity.type, activity.status)
+              
+              return (
+                <div key={activity.id} className="flex items-start space-x-3 p-3 rounded-lg hover:bg-gray-50 transition-colors">
+                  <div className={`p-2 rounded-full ${colorClasses}`}>
+                    <Icon className="w-4 h-4" />
                   </div>
                   
-                  <p className="text-sm text-gray-600 truncate mt-1">
-                    {activity.description}
-                  </p>
-                  
-                  <p className="text-xs text-gray-500 mt-1">
-                    {dateUtils.getRelativeTime(activity.timestamp)}
-                  </p>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium text-gray-900 truncate">
+                        {activity.title}
+                      </p>
+                      <div className="flex items-center space-x-2">
+                        {activity.amount && (
+                          <span className={`text-xs font-medium ${
+                            activity.type === 'payment' ? 'text-green-600' : 'text-red-600'
+                          }`}>
+                            {activity.type === 'payment' ? '+' : '-'}
+                            {currencyUtils.format(activity.amount)}
+                          </span>
+                        )}
+                        {getStatusBadge(activity.status)}
+                      </div>
+                    </div>
+                    
+                    <p className="text-sm text-gray-600 truncate mt-1">
+                      {activity.description}
+                    </p>
+                    
+                    <p className="text-xs text-gray-500 mt-1">
+                      {dateUtils.getRelativeTime(activity.timestamp)}
+                    </p>
+                  </div>
                 </div>
-              </div>
-            )
-          })}
-
-          {displayedActivities.length === 0 && (
+              )
+            })
+          ) : (
             <div className="text-center py-8">
               <AlertCircle className="w-8 h-8 text-gray-400 mx-auto mb-2" />
               <p className="text-sm text-gray-500">Belum ada aktivitas</p>
@@ -199,14 +187,16 @@ const RecentActivities: React.FC<RecentActivitiesProps> = ({
           )}
         </div>
 
-        {activities.length > limit && (
+        {activities.length > 0 && activityCount > limit && (
           <div className="mt-4 pt-4 border-t border-gray-200">
-            <Link href="/dashboard/activities">
-              <Button variant="ghost" className="w-full">
-                Lihat {activities.length - limit} aktivitas lainnya
-                <ArrowRight className="w-4 h-4 ml-2" />
-              </Button>
-            </Link>
+            <Button 
+              variant="ghost" 
+              className="w-full"
+              onClick={handleViewAll}
+            >
+              Lihat {activityCount - limit} aktivitas lainnya
+              <ArrowRight className="w-4 h-4 ml-2" />
+            </Button>
           </div>
         )}
       </CardContent>
