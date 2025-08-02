@@ -1,10 +1,13 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/components/providers/AuthProvider'
+import toast from 'react-hot-toast'
 import { 
   User, 
   Mail, 
@@ -20,42 +23,215 @@ import {
   Settings,
   Award,
   Clock,
-  Users
+  Users,
+  X,
+  Upload
 } from 'lucide-react'
 
 interface UserProfile {
-  name: string
+  id: string
   email: string
+  full_name: string
   phone: string
   role: string
-  school: string
-  class: string
+  school_name: string
+  class_name: string
   address: string
-  joined_date: string
+  created_at: string
   avatar_url?: string
 }
 
+interface Activity {
+  id: string
+  action: string
+  description: string
+  created_at: string
+  type: string
+}
+
 const ProfilePage = () => {
+  const { user } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
-  const [profile, setProfile] = useState<UserProfile>({
-    name: 'Ibu Sari Wijaya',
-    email: 'sari.wijaya@sdindonesia.sch.id',
-    phone: '628123456789',
-    role: 'Bendahara Kelas',
-    school: 'SD Indonesia',
-    class: 'Kelas 1A',
-    address: 'Jl. Pendidikan No. 123, Jakarta Selatan',
-    joined_date: '2023-08-01'
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
+  const [isChangingPassword, setIsChangingPassword] = useState(false)
+  const [profile, setProfile] = useState<UserProfile | null>(null)
+  const [activities, setActivities] = useState<Activity[]>([])
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: ''
   })
 
-  const handleInputChange = (field: keyof UserProfile, value: string) => {
-    setProfile(prev => ({ ...prev, [field]: value }))
+  useEffect(() => {
+    if (user) {
+      fetchProfile()
+      fetchActivities()
+    }
+  }, [user])
+
+  const fetchProfile = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('users')
+        .select('*')
+        .eq('id', user?.id)
+        .single()
+
+      if (error) throw error
+
+      setProfile(data)
+    } catch (error) {
+      console.error('Error fetching profile:', error)
+      toast.error('Gagal memuat profil')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
-  const handleSave = () => {
-    // Simulate save
-    setIsEditing(false)
-    alert('Profile berhasil disperbarui!')
+  const fetchActivities = async () => {
+    try {
+      // Fetch recent activities from various tables
+      const [payments, students, expenses] = await Promise.all([
+        supabase
+          .from('payments')
+          .select('id, created_at, amount, status')
+          .eq('created_by', user?.id)
+          .order('created_at', { ascending: false })
+          .limit(3),
+        supabase
+          .from('students')
+          .select('id, created_at, nama')
+          .eq('created_by', user?.id)
+          .order('created_at', { ascending: false })
+          .limit(3),
+        supabase
+          .from('expenses')
+          .select('id, created_at, description, amount')
+          .eq('created_by', user?.id)
+          .order('created_at', { ascending: false })
+          .limit(3)
+      ])
+
+      const allActivities: Activity[] = []
+
+      // Process payments
+      if (payments.data) {
+        payments.data.forEach(p => {
+          allActivities.push({
+            id: `payment-${p.id}`,
+            action: p.status === 'paid' ? 'Pembayaran diterima' : 'Membuat tagihan',
+            description: `Rp ${p.amount.toLocaleString('id-ID')}`,
+            created_at: p.created_at,
+            type: 'payment'
+          })
+        })
+      }
+
+      // Process students
+      if (students.data) {
+        students.data.forEach(s => {
+          allActivities.push({
+            id: `student-${s.id}`,
+            action: 'Menambah siswa',
+            description: s.nama,
+            created_at: s.created_at,
+            type: 'student'
+          })
+        })
+      }
+
+      // Process expenses
+      if (expenses.data) {
+        expenses.data.forEach(e => {
+          allActivities.push({
+            id: `expense-${e.id}`,
+            action: 'Mencatat pengeluaran',
+            description: e.description,
+            created_at: e.created_at,
+            type: 'expense'
+          })
+        })
+      }
+
+      // Sort by date and take top 5
+      const sortedActivities = allActivities
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
+        .slice(0, 5)
+
+      setActivities(sortedActivities)
+    } catch (error) {
+      console.error('Error fetching activities:', error)
+    }
+  }
+
+  const handleInputChange = (field: keyof UserProfile, value: string) => {
+    if (profile) {
+      setProfile({ ...profile, [field]: value })
+    }
+  }
+
+  const handleSave = async () => {
+    if (!profile) return
+
+    setIsSaving(true)
+    try {
+      const { error } = await supabase
+        .from('users')
+        .update({
+          full_name: profile.full_name,
+          phone: profile.phone,
+          address: profile.address,
+          school_name: profile.school_name,
+          class_name: profile.class_name,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user?.id)
+
+      if (error) throw error
+
+      toast.success('Profil berhasil diperbarui')
+      setIsEditing(false)
+    } catch (error) {
+      console.error('Error updating profile:', error)
+      toast.error('Gagal memperbarui profil')
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleChangePassword = async () => {
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      toast.error('Password baru tidak cocok')
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      toast.error('Password minimal 6 karakter')
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: passwordData.newPassword
+      })
+
+      if (error) throw error
+
+      toast.success('Password berhasil diubah')
+      setIsChangingPassword(false)
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: ''
+      })
+    } catch (error) {
+      console.error('Error changing password:', error)
+      toast.error('Gagal mengubah password')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   const formatDate = (dateString: string) => {
@@ -66,28 +242,52 @@ const ProfilePage = () => {
     })
   }
 
-  const activities = [
-    {
-      action: 'Membuat tagihan kas bulan Februari',
-      time: '2 jam yang lalu',
-      icon: <Users className="w-4 h-4 text-blue-600" />
-    },
-    {
-      action: 'Export laporan keuangan',
-      time: '1 hari yang lalu',
-      icon: <Award className="w-4 h-4 text-green-600" />
-    },
-    {
-      action: 'Kirim reminder WhatsApp',
-      time: '2 hari yang lalu',
-      icon: <Bell className="w-4 h-4 text-yellow-600" />
-    },
-    {
-      action: 'Update data siswa baru',
-      time: '3 hari yang lalu',
-      icon: <Edit className="w-4 h-4 text-purple-600" />
+  const getActivityIcon = (type: string) => {
+    switch (type) {
+      case 'payment':
+        return <Award className="w-4 h-4 text-green-600" />
+      case 'student':
+        return <Users className="w-4 h-4 text-blue-600" />
+      case 'expense':
+        return <Clock className="w-4 h-4 text-red-600" />
+      default:
+        return <Bell className="w-4 h-4 text-gray-600" />
     }
-  ]
+  }
+
+  const getRelativeTime = (dateString: string) => {
+    const date = new Date(dateString)
+    const now = new Date()
+    const diffMs = now.getTime() - date.getTime()
+    const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24))
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60))
+    const diffMinutes = Math.floor(diffMs / (1000 * 60))
+
+    if (diffDays > 0) return `${diffDays} hari yang lalu`
+    if (diffHours > 0) return `${diffHours} jam yang lalu`
+    if (diffMinutes > 0) return `${diffMinutes} menit yang lalu`
+    return 'Baru saja'
+  }
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </DashboardLayout>
+    )
+  }
+
+  if (!profile) {
+    return (
+      <DashboardLayout>
+        <div className="text-center py-12">
+          <p className="text-gray-500">Profil tidak ditemukan</p>
+        </div>
+      </DashboardLayout>
+    )
+  }
 
   return (
     <DashboardLayout>
@@ -106,9 +306,18 @@ const ProfilePage = () => {
                 <Button variant="outline" onClick={() => setIsEditing(false)}>
                   Batal
                 </Button>
-                <Button onClick={handleSave}>
-                  <Save className="w-4 h-4 mr-2" />
-                  Simpan
+                <Button onClick={handleSave} disabled={isSaving}>
+                  {isSaving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Simpan
+                    </>
+                  )}
                 </Button>
               </div>
             ) : (
@@ -137,7 +346,7 @@ const ProfilePage = () => {
                     <div className="relative">
                       <div className="w-24 h-24 bg-gradient-to-r from-blue-500 to-green-500 rounded-full flex items-center justify-center">
                         <span className="text-2xl font-bold text-white">
-                          {profile.name.split(' ').map(n => n[0]).join('')}
+                          {profile.full_name?.split(' ').map(n => n[0]).join('') || 'U'}
                         </span>
                       </div>
                       {isEditing && (
@@ -147,9 +356,11 @@ const ProfilePage = () => {
                       )}
                     </div>
                     <div>
-                      <h3 className="text-xl font-bold text-gray-900">{profile.name}</h3>
-                      <p className="text-gray-600">{profile.role}</p>
-                      <Badge variant="primary" className="mt-2">{profile.school} - {profile.class}</Badge>
+                      <h3 className="text-xl font-bold text-gray-900">{profile.full_name || 'Nama Pengguna'}</h3>
+                      <p className="text-gray-600">{profile.role || 'Bendahara'}</p>
+                      <Badge variant="primary" className="mt-2">
+                        {profile.school_name || 'Sekolah'} - {profile.class_name || 'Kelas'}
+                      </Badge>
                     </div>
                   </div>
 
@@ -162,14 +373,14 @@ const ProfilePage = () => {
                       {isEditing ? (
                         <input
                           type="text"
-                          value={profile.name}
-                          onChange={(e) => handleInputChange('name', e.target.value)}
+                          value={profile.full_name || ''}
+                          onChange={(e) => handleInputChange('full_name', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                       ) : (
                         <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                           <User className="w-4 h-4 text-gray-400 mr-3" />
-                          <span>{profile.name}</span>
+                          <span>{profile.full_name || '-'}</span>
                         </div>
                       )}
                     </div>
@@ -178,19 +389,10 @@ const ProfilePage = () => {
                       <label className="block text-sm font-medium text-gray-700 mb-2">
                         Email
                       </label>
-                      {isEditing ? (
-                        <input
-                          type="email"
-                          value={profile.email}
-                          onChange={(e) => handleInputChange('email', e.target.value)}
-                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        />
-                      ) : (
-                        <div className="flex items-center p-3 bg-gray-50 rounded-lg">
-                          <Mail className="w-4 h-4 text-gray-400 mr-3" />
-                          <span>{profile.email}</span>
-                        </div>
-                      )}
+                      <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                        <Mail className="w-4 h-4 text-gray-400 mr-3" />
+                        <span>{profile.email}</span>
+                      </div>
                     </div>
 
                     <div>
@@ -200,14 +402,14 @@ const ProfilePage = () => {
                       {isEditing ? (
                         <input
                           type="text"
-                          value={profile.phone}
+                          value={profile.phone || ''}
                           onChange={(e) => handleInputChange('phone', e.target.value)}
                           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                         />
                       ) : (
                         <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                           <Phone className="w-4 h-4 text-gray-400 mr-3" />
-                          <span>{profile.phone}</span>
+                          <span>{profile.phone || '-'}</span>
                         </div>
                       )}
                     </div>
@@ -218,8 +420,46 @@ const ProfilePage = () => {
                       </label>
                       <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                         <Shield className="w-4 h-4 text-gray-400 mr-3" />
-                        <span>{profile.role}</span>
+                        <span>{profile.role || 'Bendahara'}</span>
                       </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Nama Sekolah
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={profile.school_name || ''}
+                          onChange={(e) => handleInputChange('school_name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      ) : (
+                        <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                          <Award className="w-4 h-4 text-gray-400 mr-3" />
+                          <span>{profile.school_name || '-'}</span>
+                        </div>
+                      )}
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">
+                        Kelas
+                      </label>
+                      {isEditing ? (
+                        <input
+                          type="text"
+                          value={profile.class_name || ''}
+                          onChange={(e) => handleInputChange('class_name', e.target.value)}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      ) : (
+                        <div className="flex items-center p-3 bg-gray-50 rounded-lg">
+                          <Users className="w-4 h-4 text-gray-400 mr-3" />
+                          <span>{profile.class_name || '-'}</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -229,7 +469,7 @@ const ProfilePage = () => {
                     </label>
                     {isEditing ? (
                       <textarea
-                        value={profile.address}
+                        value={profile.address || ''}
                         onChange={(e) => handleInputChange('address', e.target.value)}
                         rows={3}
                         className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
@@ -237,7 +477,7 @@ const ProfilePage = () => {
                     ) : (
                       <div className="flex items-start p-3 bg-gray-50 rounded-lg">
                         <MapPin className="w-4 h-4 text-gray-400 mr-3 mt-0.5" />
-                        <span>{profile.address}</span>
+                        <span>{profile.address || '-'}</span>
                       </div>
                     )}
                   </div>
@@ -248,7 +488,7 @@ const ProfilePage = () => {
                     </label>
                     <div className="flex items-center p-3 bg-gray-50 rounded-lg">
                       <Calendar className="w-4 h-4 text-gray-400 mr-3" />
-                      <span>{formatDate(profile.joined_date)}</span>
+                      <span>{formatDate(profile.created_at)}</span>
                     </div>
                   </div>
                 </div>
@@ -267,7 +507,11 @@ const ProfilePage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                <Button variant="outline" className="w-full justify-start">
+                <Button 
+                  variant="outline" 
+                  className="w-full justify-start"
+                  onClick={() => setIsChangingPassword(true)}
+                >
                   <Key className="w-4 h-4 mr-2" />
                   Ubah Password
                 </Button>
@@ -292,27 +536,97 @@ const ProfilePage = () => {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {activities.map((activity, index) => (
-                    <div key={index} className="flex items-start space-x-3">
-                      <div className="bg-gray-100 p-2 rounded-full">
-                        {activity.icon}
+                  {activities.length > 0 ? (
+                    activities.map((activity) => (
+                      <div key={activity.id} className="flex items-start space-x-3">
+                        <div className="bg-gray-100 p-2 rounded-full">
+                          {getActivityIcon(activity.type)}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-gray-900">
+                            {activity.action}
+                          </p>
+                          <p className="text-xs text-gray-600">{activity.description}</p>
+                          <p className="text-xs text-gray-500">
+                            {getRelativeTime(activity.created_at)}
+                          </p>
+                        </div>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900">
-                          {activity.action}
-                        </p>
-                        <p className="text-xs text-gray-500">{activity.time}</p>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  ) : (
+                    <p className="text-sm text-gray-500 text-center py-4">
+                      Belum ada aktivitas
+                    </p>
+                  )}
                 </div>
-                <Button variant="outline" size="sm" className="w-full mt-4">
-                  Lihat Semua
-                </Button>
               </CardContent>
             </Card>
           </div>
         </div>
+
+        {/* Change Password Modal */}
+        {isChangingPassword && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <Card className="w-full max-w-md">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span className="flex items-center">
+                    <Key className="w-5 h-5 mr-2" />
+                    Ubah Password
+                  </span>
+                  <button
+                    onClick={() => setIsChangingPassword(false)}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Password Baru
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, newPassword: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Minimal 6 karakter"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Konfirmasi Password Baru
+                  </label>
+                  <input
+                    type="password"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData({ ...passwordData, confirmPassword: e.target.value })}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    placeholder="Masukkan ulang password baru"
+                  />
+                </div>
+                <div className="flex space-x-3">
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsChangingPassword(false)}
+                    className="flex-1"
+                  >
+                    Batal
+                  </Button>
+                  <Button
+                    onClick={handleChangePassword}
+                    disabled={isSaving || !passwordData.newPassword || !passwordData.confirmPassword}
+                    className="flex-1"
+                  >
+                    {isSaving ? 'Menyimpan...' : 'Simpan'}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   )

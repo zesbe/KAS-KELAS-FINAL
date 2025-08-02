@@ -5,8 +5,11 @@ import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
-// import { toast } from 'react-hot-toast'
-// import { settingsService } from '@/lib/services/settingsService'
+import toast from 'react-hot-toast'
+import { settingsService } from '@/lib/settings-service'
+import { starSenderService } from '@/lib/starsender-service'
+import { useAuth } from '@/components/providers/AuthProvider'
+import { supabase } from '@/lib/supabase'
 import { 
   Settings, 
   User, 
@@ -28,236 +31,309 @@ import {
   Smartphone,
   Mail,
   Globe,
-  Users
+  Users,
+  X
 } from 'lucide-react'
 
-interface SystemSettings {
-  school_name: string
-  class_name: string
-  teacher_name: string
-  phone_number: string
-  email: string
-  default_payment_amount: number
-  payment_due_day: number
-  currency: string
-  timezone: string
-}
-
-interface IntegrationSettings {
-  supabase_connected: boolean
-  pakasir_connected: boolean
-  wapanels_connected: boolean
-  pakasir_api_key: string
-  pakasir_slug: string
-  wapanels_app_key: string
-  wapanels_auth_key: string
-}
-
-interface NotificationSettings {
-  auto_payment_reminder: boolean
-  auto_payment_confirmation: boolean
-  reminder_days_before: number
-  email_notifications: boolean
-  whatsapp_notifications: boolean
-  parent_portal_notifications: boolean
-}
-
-// Sample data
-const initialSystemSettings: SystemSettings = {
-  school_name: 'SD Indonesia',
-  class_name: 'Kelas 1A',
-  teacher_name: 'Ibu Sari Wijaya',
-  phone_number: '628123456789',
-  email: 'sari.wijaya@sdindonesia.sch.id',
-  default_payment_amount: 25000,
-  payment_due_day: 5,
-  currency: 'IDR',
-  timezone: 'Asia/Jakarta'
-}
-
-const initialIntegrationSettings: IntegrationSettings = {
-  supabase_connected: true,
-  pakasir_connected: true,
-  wapanels_connected: true,
-  pakasir_api_key: 'pakasir_live_xxxxxxxxxxxxxxxx',
-  pakasir_slug: 'kas-kelas-1a',
-  wapanels_app_key: 'wapanels_xxxxxxxxxxxxxxxxx',
-  wapanels_auth_key: 'auth_xxxxxxxxxxxxxxxxxxxxx'
-}
-
-const initialNotificationSettings: NotificationSettings = {
-  auto_payment_reminder: true,
-  auto_payment_confirmation: true,
-  reminder_days_before: 3,
-  email_notifications: true,
-  whatsapp_notifications: true,
-  parent_portal_notifications: false
-}
-
 const SettingsPage = () => {
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState<'general' | 'integrations' | 'notifications' | 'security' | 'backup'>('general')
-  const [systemSettings, setSystemSettings] = useState<SystemSettings>(initialSystemSettings)
-  const [integrationSettings, setIntegrationSettings] = useState<IntegrationSettings>(initialIntegrationSettings)
-  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>(initialNotificationSettings)
+  const [isLoading, setIsLoading] = useState(true)
+  const [isSaving, setIsSaving] = useState(false)
   const [showApiKeys, setShowApiKeys] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
+  
+  // Settings states
+  const [systemSettings, setSystemSettings] = useState({
+    school_name: '',
+    class_name: '',
+    teacher_name: '',
+    phone_number: '',
+    email: '',
+    default_payment_amount: '25000',
+    payment_due_day: '5',
+    currency: 'IDR',
+    timezone: 'Asia/Jakarta'
+  })
 
-  const handleSystemSettingsChange = (field: keyof SystemSettings, value: string | number) => {
-    setSystemSettings(prev => ({ ...prev, [field]: value }))
-  }
+  const [integrationSettings, setIntegrationSettings] = useState({
+    pakasir_api_key: '',
+    pakasir_slug: '',
+    wapanels_app_key: '',
+    wapanels_auth_key: ''
+  })
 
-  const handleIntegrationSettingsChange = (field: keyof IntegrationSettings, value: string | boolean) => {
-    setIntegrationSettings(prev => ({ ...prev, [field]: value }))
-  }
+  const [notificationSettings, setNotificationSettings] = useState({
+    whatsapp_auto_reminders: false,
+    whatsapp_auto_confirmations: false,
+    whatsapp_reminder_days_before: 3,
+    email_notifications: false,
+    parent_portal_notifications: false
+  })
 
-  const handleNotificationSettingsChange = (field: keyof NotificationSettings, value: boolean | number) => {
-    setNotificationSettings(prev => ({ ...prev, [field]: value }))
-  }
+  const [connectionStatus, setConnectionStatus] = useState({
+    pakasir: false,
+    starsender: false,
+    supabase: true
+  })
 
-  const saveSettings = async (type: string) => {
+  useEffect(() => {
+    loadSettings()
+  }, [])
+
+  const loadSettings = async () => {
     setIsLoading(true)
-    
     try {
-      // TODO: Implement service calls when settingsService is available
-      console.log(`Saving ${type} settings...`)
+      // Load all settings
+      const settings = await settingsService.getAllSettings()
       
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000))
-      
-      // if (type === 'system') {
-      //   const { error } = await settingsService.updateAppSettings({
-      //     schoolName: systemSettings.school_name,
-      //     className: systemSettings.class_name,
-      //     teacherName: systemSettings.teacher_name,
-      //     teacherPhone: systemSettings.phone_number,
-      //     teacherEmail: systemSettings.email,
-      //     monthlyFee: systemSettings.default_payment_amount
-      //   }, 'admin')
-      //   
-      //   if (error) {
-      //     toast.error('Gagal menyimpan pengaturan sistem')
-      //     return
-      //   }
-      //   
-      //   toast.success('Pengaturan sistem berhasil disimpan!')
-      // }
-      
-      alert(`Pengaturan ${type} berhasil disimpan!`)
+      // Map settings to state
+      if (settings.data) {
+        // System settings
+        setSystemSettings({
+          school_name: settings.data.school_name || '',
+          class_name: settings.data.class_name || '',
+          teacher_name: settings.data.teacher_name || '',
+          phone_number: settings.data.phone_number || '',
+          email: settings.data.email || '',
+          default_payment_amount: settings.data.default_payment_amount || '25000',
+          payment_due_day: settings.data.payment_due_day || '5',
+          currency: settings.data.currency || 'IDR',
+          timezone: settings.data.timezone || 'Asia/Jakarta'
+        })
+
+        // Integration settings
+        setIntegrationSettings({
+          pakasir_api_key: settings.data.pakasir_api_key || '',
+          pakasir_slug: settings.data.pakasir_slug || '',
+          wapanels_app_key: settings.data.wapanels_app_key || '',
+          wapanels_auth_key: settings.data.wapanels_auth_key || ''
+        })
+
+        // Notification settings
+        setNotificationSettings({
+          whatsapp_auto_reminders: settings.data.whatsapp_auto_reminders === 'true',
+          whatsapp_auto_confirmations: settings.data.whatsapp_auto_confirmations === 'true',
+          whatsapp_reminder_days_before: parseInt(settings.data.whatsapp_reminder_days_before || '3'),
+          email_notifications: settings.data.email_notifications === 'true',
+          parent_portal_notifications: settings.data.parent_portal_notifications === 'true'
+        })
+      }
     } catch (error) {
-      console.error('Error saving settings:', error)
-      alert('Terjadi kesalahan saat menyimpan pengaturan')
+      console.error('Error loading settings:', error)
+      toast.error('Gagal memuat pengaturan')
     } finally {
       setIsLoading(false)
+    }
+  }
+
+  const saveSettings = async (section: string) => {
+    setIsSaving(true)
+    
+    try {
+      let updates: Array<{ key: string; value: string }> = []
+      
+      switch (section) {
+        case 'general':
+          updates = Object.entries(systemSettings).map(([key, value]) => ({
+            key,
+            value: value.toString()
+          }))
+          break
+          
+        case 'integration':
+          updates = Object.entries(integrationSettings).map(([key, value]) => ({
+            key,
+            value: value.toString()
+          }))
+          break
+          
+        case 'notification':
+          updates = Object.entries(notificationSettings).map(([key, value]) => ({
+            key,
+            value: value.toString()
+          }))
+          break
+      }
+      
+      const { error } = await settingsService.bulkUpdateSettings(updates, user?.id)
+      
+      if (error) throw error
+      
+      toast.success('Pengaturan berhasil disimpan')
+    } catch (error) {
+      console.error('Error saving settings:', error)
+      toast.error('Gagal menyimpan pengaturan')
+    } finally {
+      setIsSaving(false)
     }
   }
 
   const testConnection = async (service: string) => {
-    setIsLoading(true)
-    alert(`Testing ${service} connection...`)
+    const loadingToast = toast.loading(`Menguji koneksi ${service}...`)
     
     try {
-      // Simulate API test call
-      await new Promise(resolve => setTimeout(resolve, 2000))
-      alert(`${service} connection test successful!`)
+      switch (service) {
+        case 'Pakasir':
+          // Test Pakasir connection
+          const pakasirResponse = await fetch('https://api.pakasir.com/v1/test', {
+            headers: {
+              'Authorization': `Bearer ${integrationSettings.pakasir_api_key}`
+            }
+          })
+          
+          if (pakasirResponse.ok) {
+            setConnectionStatus(prev => ({ ...prev, pakasir: true }))
+            toast.success('Koneksi Pakasir berhasil', { id: loadingToast })
+          } else {
+            throw new Error('Koneksi Pakasir gagal')
+          }
+          break
+          
+        case 'StarSender':
+          const result = await starSenderService.testConnection()
+          
+          if (result.success) {
+            setConnectionStatus(prev => ({ ...prev, starsender: true }))
+            toast.success('Koneksi StarSender berhasil', { id: loadingToast })
+          } else {
+            throw new Error(result.message)
+          }
+          break
+      }
     } catch (error) {
-      alert(`${service} connection test failed!`)
-    } finally {
-      setIsLoading(false)
+      toast.error(`Koneksi ${service} gagal`, { id: loadingToast })
+      console.error(`Error testing ${service} connection:`, error)
     }
   }
 
-  const exportData = (type: string) => {
-    alert(`Exporting ${type} data...`)
+  const exportData = async () => {
+    const loadingToast = toast.loading('Mengekspor data...')
+    
+    try {
+      // Export all data from various tables
+      const [students, payments, expenses, categories] = await Promise.all([
+        supabase.from('students').select('*'),
+        supabase.from('payments').select('*'),
+        supabase.from('expenses').select('*'),
+        supabase.from('payment_categories').select('*')
+      ])
+
+      const exportData = {
+        exported_at: new Date().toISOString(),
+        students: students.data || [],
+        payments: payments.data || [],
+        expenses: expenses.data || [],
+        categories: categories.data || [],
+        settings: {
+          system: systemSettings,
+          notifications: notificationSettings
+        }
+      }
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' })
+      const url = window.URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `kas-kelas-backup-${new Date().toISOString().split('T')[0]}.json`
+      a.click()
+      window.URL.revokeObjectURL(url)
+
+      toast.success('Data berhasil diekspor', { id: loadingToast })
+    } catch (error) {
+      console.error('Error exporting data:', error)
+      toast.error('Gagal mengekspor data', { id: loadingToast })
+    }
   }
 
-  const importData = (type: string) => {
-    alert(`Importing ${type} data...`)
+  const handleSystemSettingsChange = (field: string, value: string) => {
+    setSystemSettings(prev => ({ ...prev, [field]: value }))
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('id-ID', {
-      style: 'currency',
-      currency: 'IDR',
-      minimumFractionDigits: 0
-    }).format(amount)
+  const handleIntegrationSettingsChange = (field: string, value: string) => {
+    setIntegrationSettings(prev => ({ ...prev, [field]: value }))
+  }
+
+  const handleNotificationSettingsChange = (field: string, value: boolean | number) => {
+    setNotificationSettings(prev => ({ ...prev, [field]: value }))
+  }
+
+  const tabs = [
+    { id: 'general', label: 'Umum', icon: Settings },
+    { id: 'integrations', label: 'Integrasi', icon: Globe },
+    { id: 'notifications', label: 'Notifikasi', icon: Bell },
+    { id: 'security', label: 'Keamanan', icon: Shield },
+    { id: 'backup', label: 'Backup', icon: Database }
+  ]
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
     <DashboardLayout>
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-gray-900">Pengaturan Sistem</h1>
-            <p className="text-gray-600 mt-1">
-              Kelola konfigurasi dan pengaturan aplikasi
-            </p>
-          </div>
-          <div className="mt-4 sm:mt-0">
-            <Button>
-              <Save className="w-4 h-4 mr-2" />
-              Simpan Semua
-            </Button>
-          </div>
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Pengaturan</h1>
+          <p className="text-gray-600 mt-1">
+            Kelola pengaturan aplikasi dan integrasi
+          </p>
         </div>
 
         {/* Tabs */}
         <div className="border-b border-gray-200">
           <nav className="-mb-px flex space-x-8">
-            {[
-              { id: 'general', label: 'Umum', icon: Settings },
-              { id: 'integrations', label: 'Integrasi', icon: Globe },
-              { id: 'notifications', label: 'Notifikasi', icon: Bell },
-              { id: 'security', label: 'Keamanan', icon: Shield },
-              { id: 'backup', label: 'Backup', icon: Database }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <tab.icon className="w-4 h-4 mr-2" />
-                {tab.label}
-              </button>
-            ))}
+            {tabs.map((tab) => {
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`
+                    py-2 px-1 border-b-2 font-medium text-sm flex items-center
+                    ${activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <Icon className="w-4 h-4 mr-2" />
+                  {tab.label}
+                </button>
+              )
+            })}
           </nav>
         </div>
 
-        {/* Tab Content */}
+        {/* General Settings */}
         {activeTab === 'general' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
                   <School className="w-5 h-5 mr-2" />
-                  Informasi Sekolah & Kelas
+                  Informasi Sekolah
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                {isLoading ? (
-                  <div className="animate-pulse space-y-4">
-                    {[...Array(5)].map((_, i) => (
-                      <div key={i} className="h-10 bg-gray-200 rounded"></div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="space-y-4">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                      Nama Sekolah
-                    </label>
-                    <input
-                      type="text"
-                      value={systemSettings.school_name}
-                      onChange={(e) => handleSystemSettingsChange('school_name', e.target.value)}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    />
-                  </div>
-                  <div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Nama Sekolah
+                  </label>
+                  <input
+                    type="text"
+                    value={systemSettings.school_name}
+                    onChange={(e) => handleSystemSettingsChange('school_name', e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                </div>
+                <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
                     Nama Kelas
                   </label>
@@ -279,34 +355,6 @@ const SettingsPage = () => {
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Nomor WhatsApp
-                  </label>
-                  <input
-                    type="text"
-                    value={systemSettings.phone_number}
-                    onChange={(e) => handleSystemSettingsChange('phone_number', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={systemSettings.email}
-                    onChange={(e) => handleSystemSettingsChange('email', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  />
-                </div>
-                    <Button onClick={() => saveSettings('system')} disabled={isLoading}>
-                      {isLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                      Simpan Pengaturan
-                    </Button>
-                  </div>
-                )}
               </CardContent>
             </Card>
 
@@ -320,31 +368,27 @@ const SettingsPage = () => {
               <CardContent className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Jumlah Kas Default
+                    Nominal Default
                   </label>
                   <input
                     type="number"
                     value={systemSettings.default_payment_amount}
-                    onChange={(e) => handleSystemSettingsChange('default_payment_amount', parseInt(e.target.value))}
+                    onChange={(e) => handleSystemSettingsChange('default_payment_amount', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   />
-                  <p className="text-sm text-gray-500 mt-1">
-                    {formatCurrency(systemSettings.default_payment_amount)}
-                  </p>
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Tanggal Jatuh Tempo (setiap bulan)
+                    Tanggal Jatuh Tempo (Hari)
                   </label>
-                  <select
+                  <input
+                    type="number"
                     value={systemSettings.payment_due_day}
-                    onChange={(e) => handleSystemSettingsChange('payment_due_day', parseInt(e.target.value))}
+                    onChange={(e) => handleSystemSettingsChange('payment_due_day', e.target.value)}
+                    min="1"
+                    max="31"
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    {Array.from({ length: 28 }, (_, i) => i + 1).map(day => (
-                      <option key={day} value={day}>Tanggal {day}</option>
-                    ))}
-                  </select>
+                  />
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-700 mb-1">
@@ -355,33 +399,37 @@ const SettingsPage = () => {
                     onChange={(e) => handleSystemSettingsChange('currency', e.target.value)}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                   >
-                    <option value="IDR">Indonesian Rupiah (IDR)</option>
-                    <option value="USD">US Dollar (USD)</option>
+                    <option value="IDR">IDR - Rupiah</option>
+                    <option value="USD">USD - Dollar</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
-                    Zona Waktu
-                  </label>
-                  <select
-                    value={systemSettings.timezone}
-                    onChange={(e) => handleSystemSettingsChange('timezone', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  >
-                    <option value="Asia/Jakarta">WIB (Asia/Jakarta)</option>
-                    <option value="Asia/Makassar">WITA (Asia/Makassar)</option>
-                    <option value="Asia/Jayapura">WIT (Asia/Jayapura)</option>
-                  </select>
-                </div>
+                <Button 
+                  onClick={() => saveSettings('general')}
+                  disabled={isSaving}
+                  className="w-full"
+                >
+                  {isSaving ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                      Menyimpan...
+                    </>
+                  ) : (
+                    <>
+                      <Save className="w-4 h-4 mr-2" />
+                      Simpan Pengaturan
+                    </>
+                  )}
+                </Button>
               </CardContent>
             </Card>
           </div>
         )}
 
+        {/* Integration Settings */}
         {activeTab === 'integrations' && (
           <div className="space-y-6">
-            {/* Connection Status Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {/* Integration Status */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <Card>
                 <CardContent className="p-6">
                   <div className="flex items-center justify-between">
@@ -392,8 +440,8 @@ const SettingsPage = () => {
                         <p className="text-sm text-gray-600">Database</p>
                       </div>
                     </div>
-                    <Badge variant={integrationSettings.supabase_connected ? "success" : "danger"}>
-                      {integrationSettings.supabase_connected ? "Terhubung" : "Terputus"}
+                    <Badge variant={connectionStatus.supabase ? "success" : "danger"}>
+                      {connectionStatus.supabase ? "Terhubung" : "Terputus"}
                     </Badge>
                   </div>
                 </CardContent>
@@ -409,8 +457,8 @@ const SettingsPage = () => {
                         <p className="text-sm text-gray-600">Payment Gateway</p>
                       </div>
                     </div>
-                    <Badge variant={integrationSettings.pakasir_connected ? "success" : "danger"}>
-                      {integrationSettings.pakasir_connected ? "Terhubung" : "Terputus"}
+                    <Badge variant={connectionStatus.pakasir ? "success" : "danger"}>
+                      {connectionStatus.pakasir ? "Terhubung" : "Terputus"}
                     </Badge>
                   </div>
                 </CardContent>
@@ -426,8 +474,8 @@ const SettingsPage = () => {
                         <p className="text-sm text-gray-600">WhatsApp Gateway</p>
                       </div>
                     </div>
-                    <Badge variant={integrationSettings.wapanels_connected ? "success" : "danger"}>
-                      {integrationSettings.wapanels_connected ? "Terhubung" : "Terputus"}
+                    <Badge variant={connectionStatus.starsender ? "success" : "danger"}>
+                      {connectionStatus.starsender ? "Terhubung" : "Terputus"}
                     </Badge>
                   </div>
                 </CardContent>
@@ -535,9 +583,9 @@ const SettingsPage = () => {
                   </Button>
                   <Button 
                     onClick={() => saveSettings('integration')}
-                    disabled={isLoading}
+                    disabled={isSaving}
                   >
-                    {isLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                    {isSaving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
                     Simpan Pengaturan
                   </Button>
                 </CardContent>
@@ -546,6 +594,7 @@ const SettingsPage = () => {
           </div>
         )}
 
+        {/* Notification Settings */}
         {activeTab === 'notifications' && (
           <Card>
             <CardHeader>
@@ -555,171 +604,138 @@ const SettingsPage = () => {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Notifikasi Otomatis</h4>
-                <div className="space-y-4">
-                  <label className="flex items-center justify-between">
-                    <div>
-                      <span className="font-medium text-gray-700">Reminder Pembayaran Otomatis</span>
-                      <p className="text-sm text-gray-600">Kirim reminder WhatsApp sebelum jatuh tempo</p>
-                    </div>
+              <div className="space-y-4">
+                <h3 className="font-medium text-gray-900">WhatsApp Notifications</h3>
+                
+                <label className="flex items-center justify-between">
+                  <div className="flex items-center">
                     <input
                       type="checkbox"
-                      checked={notificationSettings.auto_payment_reminder}
-                      onChange={(e) => handleNotificationSettingsChange('auto_payment_reminder', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      checked={notificationSettings.whatsapp_auto_reminders}
+                      onChange={(e) => handleNotificationSettingsChange('whatsapp_auto_reminders', e.target.checked)}
+                      className="mr-3"
                     />
-                  </label>
-
-                  <label className="flex items-center justify-between">
                     <div>
-                      <span className="font-medium text-gray-700">Konfirmasi Pembayaran Otomatis</span>
-                      <p className="text-sm text-gray-600">Kirim konfirmasi ketika pembayaran berhasil</p>
+                      <p className="font-medium">Reminder Otomatis</p>
+                      <p className="text-sm text-gray-600">Kirim reminder pembayaran otomatis via WhatsApp</p>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.auto_payment_confirmation}
-                      onChange={(e) => handleNotificationSettingsChange('auto_payment_confirmation', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                  </label>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Kirim Reminder Berapa Hari Sebelum Jatuh Tempo
-                    </label>
-                    <select
-                      value={notificationSettings.reminder_days_before}
-                      onChange={(e) => handleNotificationSettingsChange('reminder_days_before', parseInt(e.target.value))}
-                      className="w-48 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                      <option value={1}>1 hari sebelum</option>
-                      <option value={2}>2 hari sebelum</option>
-                      <option value={3}>3 hari sebelum</option>
-                      <option value={5}>5 hari sebelum</option>
-                      <option value={7}>7 hari sebelum</option>
-                    </select>
                   </div>
-                </div>
+                </label>
+
+                {notificationSettings.whatsapp_auto_reminders && (
+                  <div className="ml-7">
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Kirim reminder berapa hari sebelum jatuh tempo
+                    </label>
+                    <input
+                      type="number"
+                      value={notificationSettings.whatsapp_reminder_days_before}
+                      onChange={(e) => handleNotificationSettingsChange('whatsapp_reminder_days_before', parseInt(e.target.value))}
+                      min="1"
+                      max="30"
+                      className="w-32 px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                )}
+
+                <label className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      checked={notificationSettings.whatsapp_auto_confirmations}
+                      onChange={(e) => handleNotificationSettingsChange('whatsapp_auto_confirmations', e.target.checked)}
+                      className="mr-3"
+                    />
+                    <div>
+                      <p className="font-medium">Konfirmasi Pembayaran Otomatis</p>
+                      <p className="text-sm text-gray-600">Kirim konfirmasi otomatis setelah pembayaran diterima</p>
+                    </div>
+                  </div>
+                </label>
               </div>
 
-              <div>
-                <h4 className="font-medium text-gray-900 mb-4">Channel Notifikasi</h4>
-                <div className="space-y-4">
-                  <label className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Mail className="w-5 h-5 text-gray-400 mr-3" />
-                      <div>
-                        <span className="font-medium text-gray-700">Email Notifikasi</span>
-                        <p className="text-sm text-gray-600">Terima notifikasi via email</p>
-                      </div>
-                    </div>
+              <div className="space-y-4">
+                <h3 className="font-medium text-gray-900">Other Notifications</h3>
+                
+                <label className="flex items-center justify-between">
+                  <div className="flex items-center">
                     <input
                       type="checkbox"
                       checked={notificationSettings.email_notifications}
                       onChange={(e) => handleNotificationSettingsChange('email_notifications', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="mr-3"
                     />
-                  </label>
-
-                  <label className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Smartphone className="w-5 h-5 text-gray-400 mr-3" />
-                      <div>
-                        <span className="font-medium text-gray-700">WhatsApp Notifikasi</span>
-                        <p className="text-sm text-gray-600">Terima notifikasi via WhatsApp</p>
-                      </div>
+                    <div>
+                      <p className="font-medium">Email Notifications</p>
+                      <p className="text-sm text-gray-600">Terima notifikasi via email</p>
                     </div>
-                    <input
-                      type="checkbox"
-                      checked={notificationSettings.whatsapp_notifications}
-                      onChange={(e) => handleNotificationSettingsChange('whatsapp_notifications', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                    />
-                  </label>
+                  </div>
+                </label>
 
-                  <label className="flex items-center justify-between">
-                    <div className="flex items-center">
-                      <Globe className="w-5 h-5 text-gray-400 mr-3" />
-                      <div>
-                        <span className="font-medium text-gray-700">Portal Orang Tua</span>
-                        <p className="text-sm text-gray-600">Notifikasi di portal orang tua</p>
-                      </div>
-                    </div>
+                <label className="flex items-center justify-between">
+                  <div className="flex items-center">
                     <input
                       type="checkbox"
                       checked={notificationSettings.parent_portal_notifications}
                       onChange={(e) => handleNotificationSettingsChange('parent_portal_notifications', e.target.checked)}
-                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                      className="mr-3"
                     />
-                  </label>
-                </div>
+                    <div>
+                      <p className="font-medium">Portal Orang Tua</p>
+                      <p className="text-sm text-gray-600">Tampilkan notifikasi di portal orang tua</p>
+                    </div>
+                  </div>
+                </label>
               </div>
 
-              <Button onClick={() => saveSettings('notification')} disabled={isLoading}>
-                {isLoading ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
-                Simpan Pengaturan Notifikasi
+              <Button 
+                onClick={() => saveSettings('notification')}
+                disabled={isSaving}
+              >
+                {isSaving ? <RefreshCw className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Simpan Pengaturan
               </Button>
             </CardContent>
           </Card>
         )}
 
+        {/* Security Settings */}
         {activeTab === 'security' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Key className="w-5 h-5 mr-2" />
-                  Keamanan Akses
+                  <Shield className="w-5 h-5 mr-2" />
+                  Keamanan Akun
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <div className="p-4 bg-blue-50 rounded-lg">
                   <div className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
-                    <div>
-                      <h4 className="font-medium text-green-900">Keamanan Aktif</h4>
-                      <p className="text-sm text-green-700">Sistem menggunakan enkripsi end-to-end</p>
-                    </div>
+                    <CheckCircle className="w-5 h-5 text-blue-600 mr-2" />
+                    <span className="font-medium">Two-Factor Authentication</span>
                   </div>
+                  <p className="text-sm text-gray-600 mt-1">
+                    Lindungi akun Anda dengan verifikasi dua langkah
+                  </p>
+                  <Button variant="outline" size="sm" className="mt-3">
+                    Aktifkan 2FA
+                  </Button>
                 </div>
 
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-3">Pengaturan Password</h4>
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Password Saat Ini
-                      </label>
-                      <input
-                        type="password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Masukkan password saat ini"
-                      />
+                <div className="space-y-3">
+                  <h4 className="font-medium">Login Terakhir</h4>
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div className="flex items-center">
+                        <Smartphone className="w-4 h-4 text-gray-400 mr-3" />
+                        <div>
+                          <p className="text-sm font-medium">Chrome - Windows</p>
+                          <p className="text-xs text-gray-500">Jakarta, Indonesia</p>
+                        </div>
+                      </div>
+                      <span className="text-xs text-gray-500">2 jam yang lalu</span>
                     </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Password Baru
-                      </label>
-                      <input
-                        type="password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Masukkan password baru"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-sm font-medium text-gray-700 mb-1">
-                        Konfirmasi Password Baru
-                      </label>
-                      <input
-                        type="password"
-                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                        placeholder="Konfirmasi password baru"
-                      />
-                    </div>
-                    <Button variant="outline" className="w-full">
-                      Update Password
-                    </Button>
                   </div>
                 </div>
               </CardContent>
@@ -728,35 +744,31 @@ const SettingsPage = () => {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center">
-                  <Shield className="w-5 h-5 mr-2" />
-                  Log Aktivitas
+                  <Key className="w-5 h-5 mr-2" />
+                  API Keys
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {[
-                    { action: 'Login berhasil', time: '2024-01-20 08:30:15', ip: '192.168.1.100' },
-                    { action: 'Export laporan', time: '2024-01-20 07:45:22', ip: '192.168.1.100' },
-                    { action: 'Update pengaturan', time: '2024-01-19 16:20:11', ip: '192.168.1.100' },
-                    { action: 'Kirim WhatsApp broadcast', time: '2024-01-19 14:15:33', ip: '192.168.1.100' }
-                  ].map((log, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
-                      <div>
-                        <p className="text-sm font-medium text-gray-900">{log.action}</p>
-                        <p className="text-xs text-gray-600">{log.time}</p>
-                      </div>
-                      <span className="text-xs text-gray-500">{log.ip}</span>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Kelola API keys untuk integrasi dengan aplikasi lain
+                </p>
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div>
+                      <p className="text-sm font-medium">Public API Key</p>
+                      <p className="text-xs text-gray-500 font-mono">pk_live_xxxxxxxxxxxxx</p>
                     </div>
-                  ))}
+                    <Button variant="outline" size="sm">
+                      Regenerate
+                    </Button>
+                  </div>
                 </div>
-                <Button variant="outline" className="w-full mt-4">
-                  Lihat Semua Log
-                </Button>
               </CardContent>
             </Card>
           </div>
         )}
 
+        {/* Backup Settings */}
         {activeTab === 'backup' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <Card>
@@ -767,27 +779,13 @@ const SettingsPage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <p className="text-gray-600">
-                  Export data untuk backup atau migrasi ke sistem lain.
+                <p className="text-sm text-gray-600">
+                  Export semua data aplikasi dalam format JSON untuk backup atau migrasi
                 </p>
-                <div className="space-y-3">
-                  <Button variant="outline" className="w-full justify-start" onClick={() => exportData('students')}>
-                    <Users className="w-4 h-4 mr-2" />
-                    Export Data Siswa
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => exportData('payments')}>
-                    <CreditCard className="w-4 h-4 mr-2" />
-                    Export Data Pembayaran
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => exportData('expenses')}>
-                    <Database className="w-4 h-4 mr-2" />
-                    Export Data Pengeluaran
-                  </Button>
-                  <Button variant="outline" className="w-full justify-start" onClick={() => exportData('all')}>
-                    <Download className="w-4 h-4 mr-2" />
-                    Export Semua Data
-                  </Button>
-                </div>
+                <Button onClick={exportData} className="w-full">
+                  <Download className="w-4 h-4 mr-2" />
+                  Export Semua Data
+                </Button>
               </CardContent>
             </Card>
 
@@ -799,42 +797,25 @@ const SettingsPage = () => {
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-                  <div className="flex items-start">
-                    <AlertCircle className="w-5 h-5 text-yellow-600 mt-0.5 mr-3" />
-                    <div>
-                      <h4 className="font-medium text-yellow-900">Peringatan</h4>
-                      <p className="text-sm text-yellow-700 mt-1">
-                        Import data akan mengganti data yang sudah ada. Pastikan Anda telah membuat backup.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-                <div className="space-y-3">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Import Data Siswa
-                    </label>
-                    <input
-                      type="file"
-                      accept=".csv,.xlsx,.json"
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Import Data Pembayaran
-                    </label>
-                    <input
-                      type="file"
-                      accept=".csv,.xlsx,.json"
-                      className="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-medium file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
-                    />
-                  </div>
-                  <Button onClick={() => importData('selected')}>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Import Data
-                  </Button>
+                <p className="text-sm text-gray-600">
+                  Import data dari file backup JSON
+                </p>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center">
+                  <Upload className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                  <p className="text-sm text-gray-600">
+                    Drag & drop file JSON atau klik untuk browse
+                  </p>
+                  <input
+                    type="file"
+                    accept=".json"
+                    className="hidden"
+                    id="import-file"
+                  />
+                  <label htmlFor="import-file">
+                    <Button variant="outline" size="sm" className="mt-2" as="span">
+                      Pilih File
+                    </Button>
+                  </label>
                 </div>
               </CardContent>
             </Card>

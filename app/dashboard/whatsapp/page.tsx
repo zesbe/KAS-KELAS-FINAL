@@ -7,6 +7,8 @@ import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
 import BulkWhatsApp from '@/components/whatsapp/BulkWhatsApp'
 import StarSenderTest from '@/components/whatsapp/StarSenderTest'
+import { supabase } from '@/lib/supabase'
+import { useAuth } from '@/components/providers/AuthProvider'
 import toast from 'react-hot-toast'
 import { 
   MessageCircle, 
@@ -22,19 +24,24 @@ import {
   Calendar,
   Phone,
   Zap,
-  AlertCircle
+  AlertCircle,
+  FileText,
+  Save
 } from 'lucide-react'
 
 interface WhatsAppMessage {
   id: string
-  type: 'payment_reminder' | 'payment_confirmation' | 'general_announcement'
-  recipient: string
+  type: 'payment_reminder' | 'payment_confirmation' | 'general_announcement' | 'custom'
+  recipient_phone: string
   recipient_name: string
   message: string
   status: 'pending' | 'sent' | 'delivered' | 'read' | 'failed'
   sent_at?: string
   scheduled_at?: string
-  student_name?: string
+  student_id?: string
+  payment_id?: string
+  created_by?: string
+  created_at: string
 }
 
 interface MessageTemplate {
@@ -43,105 +50,259 @@ interface MessageTemplate {
   type: string
   content: string
   variables: string[]
+  is_active: boolean
+  created_at: string
+  updated_at: string
 }
 
-// Sample data
-const sampleMessages: WhatsAppMessage[] = [
-  {
-    id: '1',
-    type: 'payment_reminder',
-    recipient: '628123456789',
-    recipient_name: 'Budi Santoso',
-    student_name: 'Ahmad Rizki Pratama',
-    message: '🏫 *KAS KELAS 1A - SD INDONESIA*\n\nYth. Bapak/Ibu Budi Santoso\n\n📋 Tagihan: Kas Bulanan Februari 2024\n💰 Nominal: Rp 25.000\n📅 Jatuh Tempo: 5 Februari 2024\n\n🔗 *BAYAR SEKARANG (KLIK LINK)*\nhttps://pakasir.zone.id/pay/abc123\n\n✅ *Metode Pembayaran:*\n🏦 Transfer Bank | 💳 E-Wallet | 📱 QRIS\n\nTerima kasih 🙏',
-    status: 'delivered',
-    sent_at: '2024-01-20T08:00:00Z'
-  },
-  {
-    id: '2',
-    type: 'payment_confirmation',
-    recipient: '628234567890',
-    recipient_name: 'Sari Dewi',
-    student_name: 'Siti Nurhaliza',
-    message: '✅ *PEMBAYARAN BERHASIL*\n\n🏫 KAS KELAS 1A - SD INDONESIA\n\nYth. Ibu Sari Dewi\n\nPembayaran kas bulanan atas nama *Siti Nurhaliza* telah berhasil diterima:\n\n💰 Nominal: Rp 25.000\n📅 Tanggal: 18 Januari 2024\n🆔 ID Transaksi: TRX123456\n\nTerima kasih atas pembayarannya! 🙏',
-    status: 'read',
-    sent_at: '2024-01-18T14:30:00Z'
-  },
-  {
-    id: '3',
-    type: 'general_announcement',
-    recipient: 'broadcast',
-    recipient_name: 'Semua Orang Tua',
-    message: '📢 *PENGUMUMAN KELAS 1A*\n\n🏫 SD INDONESIA\n\nYth. Bapak/Ibu Orang Tua Siswa\n\nDengan hormat, kami informasikan bahwa:\n\n📅 **Rapat Orang Tua**\nHari: Sabtu, 3 Februari 2024\nWaktu: 09.00 - 11.00 WIB\nTempat: Ruang Kelas 1A\n\n📋 **Agenda:**\n• Laporan keuangan kas kelas\n• Program kegiatan semester 2\n• Persiapan study tour\n\nMohon kehadiran Bapak/Ibu. Terima kasih 🙏',
-    status: 'pending',
-    scheduled_at: '2024-02-01T07:00:00Z'
-  }
-]
-
-const messageTemplates: MessageTemplate[] = [
-  {
-    id: '1',
-    name: 'Reminder Pembayaran',
-    type: 'payment_reminder',
-    content: '🏫 *KAS KELAS 1A - SD INDONESIA*\n\nYth. {parent_name}\n\n📋 Tagihan: {payment_category}\n💰 Nominal: {amount}\n📅 Jatuh Tempo: {due_date}\n\n🔗 *BAYAR SEKARANG*\n{payment_link}\n\nTerima kasih 🙏',
-    variables: ['parent_name', 'payment_category', 'amount', 'due_date', 'payment_link']
-  },
-  {
-    id: '2',
-    name: 'Konfirmasi Pembayaran',
-    type: 'payment_confirmation',
-    content: '✅ *PEMBAYARAN BERHASIL*\n\nYth. {parent_name}\n\nPembayaran {payment_category} atas nama *{student_name}* telah diterima:\n\n💰 Nominal: {amount}\n📅 Tanggal: {payment_date}\n🆔 ID: {transaction_id}\n\nTerima kasih! 🙏',
-    variables: ['parent_name', 'student_name', 'payment_category', 'amount', 'payment_date', 'transaction_id']
-  }
-]
+interface MessageStats {
+  total: number
+  sent: number
+  delivered: number
+  failed: number
+  pending: number
+}
 
 const WhatsAppPage = () => {
-  const [messages, setMessages] = useState<WhatsAppMessage[]>(sampleMessages)
+  const { user } = useAuth()
+  const [messages, setMessages] = useState<WhatsAppMessage[]>([])
+  const [templates, setTemplates] = useState<MessageTemplate[]>([])
+  const [stats, setStats] = useState<MessageStats>({
+    total: 0,
+    sent: 0,
+    delivered: 0,
+    failed: 0,
+    pending: 0
+  })
   const [activeTab, setActiveTab] = useState<'messages' | 'templates' | 'broadcast' | 'selective' | 'settings' | 'test'>('messages')
-  const [selectedMessages, setSelectedMessages] = useState<string[]>([])
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [selectedTemplate, setSelectedTemplate] = useState<MessageTemplate | null>(null)
+  const [isCreatingTemplate, setIsCreatingTemplate] = useState(false)
+  const [newTemplate, setNewTemplate] = useState({
+    name: '',
+    type: 'payment_reminder',
+    content: '',
+    variables: [] as string[]
+  })
 
+  useEffect(() => {
+    fetchMessages()
+    fetchTemplates()
+    fetchStats()
+  }, [])
 
+  const fetchMessages = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_messages')
+        .select(`
+          *,
+          student:students(nama),
+          payment:payments(order_id, amount)
+        `)
+        .order('created_at', { ascending: false })
+        .limit(50)
 
-  const statusStats = {
-    total: messages.length,
-    sent: messages.filter(m => m.status === 'sent' || m.status === 'delivered' || m.status === 'read').length,
-    pending: messages.filter(m => m.status === 'pending').length,
-    failed: messages.filter(m => m.status === 'failed').length
+      if (error) throw error
+
+      setMessages(data || [])
+    } catch (error) {
+      console.error('Error fetching messages:', error)
+      toast.error('Gagal memuat riwayat pesan')
+    }
   }
 
+  const fetchTemplates = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('message_templates')
+        .select('*')
+        .eq('is_active', true)
+        .order('created_at', { ascending: false })
+
+      if (error) throw error
+
+      // If no templates exist, create default ones
+      if (!data || data.length === 0) {
+        await createDefaultTemplates()
+        fetchTemplates()
+      } else {
+        setTemplates(data)
+      }
+    } catch (error) {
+      console.error('Error fetching templates:', error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const fetchStats = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('whatsapp_messages')
+        .select('status')
+
+      if (error) throw error
+
+      const stats = (data || []).reduce((acc, msg) => {
+        acc.total++
+        if (msg.status === 'sent') acc.sent++
+        else if (msg.status === 'delivered') acc.delivered++
+        else if (msg.status === 'failed') acc.failed++
+        else if (msg.status === 'pending') acc.pending++
+        return acc
+      }, {
+        total: 0,
+        sent: 0,
+        delivered: 0,
+        failed: 0,
+        pending: 0
+      })
+
+      setStats(stats)
+    } catch (error) {
+      console.error('Error fetching stats:', error)
+    }
+  }
+
+  const createDefaultTemplates = async () => {
+    const defaultTemplates = [
+      {
+        name: 'Reminder Pembayaran',
+        type: 'payment_reminder',
+        content: '🏫 *KAS KELAS - {school_name}*\n\nYth. {parent_name}\n\n📋 Tagihan: {payment_category}\n💰 Nominal: Rp {amount}\n📅 Jatuh Tempo: {due_date}\n\n🔗 *BAYAR SEKARANG*\n{payment_link}\n\nTerima kasih 🙏',
+        variables: ['school_name', 'parent_name', 'payment_category', 'amount', 'due_date', 'payment_link'],
+        is_active: true,
+        created_by: user?.id
+      },
+      {
+        name: 'Konfirmasi Pembayaran',
+        type: 'payment_confirmation',
+        content: '✅ *PEMBAYARAN BERHASIL*\n\nYth. {parent_name}\n\nPembayaran {payment_category} atas nama *{student_name}* telah diterima:\n\n💰 Nominal: Rp {amount}\n📅 Tanggal: {payment_date}\n🆔 ID: {transaction_id}\n\nTerima kasih! 🙏',
+        variables: ['parent_name', 'student_name', 'payment_category', 'amount', 'payment_date', 'transaction_id'],
+        is_active: true,
+        created_by: user?.id
+      },
+      {
+        name: 'Pengumuman Umum',
+        type: 'general_announcement',
+        content: '📢 *PENGUMUMAN {class_name}*\n\n🏫 {school_name}\n\nYth. Bapak/Ibu Orang Tua Siswa\n\n{announcement_content}\n\nTerima kasih 🙏',
+        variables: ['class_name', 'school_name', 'announcement_content'],
+        is_active: true,
+        created_by: user?.id
+      }
+    ]
+
+    try {
+      const { error } = await supabase
+        .from('message_templates')
+        .insert(defaultTemplates)
+
+      if (error) throw error
+    } catch (error) {
+      console.error('Error creating default templates:', error)
+    }
+  }
+
+  const saveTemplate = async () => {
+    if (!newTemplate.name || !newTemplate.content) {
+      toast.error('Nama dan isi template harus diisi')
+      return
+    }
+
+    try {
+      // Extract variables from content (text between curly braces)
+      const variables = newTemplate.content.match(/\{([^}]+)\}/g)?.map(v => v.slice(1, -1)) || []
+
+      const { error } = await supabase
+        .from('message_templates')
+        .insert({
+          name: newTemplate.name,
+          type: newTemplate.type,
+          content: newTemplate.content,
+          variables,
+          is_active: true,
+          created_by: user?.id
+        })
+
+      if (error) throw error
+
+      toast.success('Template berhasil disimpan')
+      setIsCreatingTemplate(false)
+      setNewTemplate({
+        name: '',
+        type: 'payment_reminder',
+        content: '',
+        variables: []
+      })
+      fetchTemplates()
+    } catch (error) {
+      console.error('Error saving template:', error)
+      toast.error('Gagal menyimpan template')
+    }
+  }
+
+  const deleteTemplate = async (templateId: string) => {
+    if (!confirm('Apakah Anda yakin ingin menghapus template ini?')) return
+
+    try {
+      const { error } = await supabase
+        .from('message_templates')
+        .update({ is_active: false })
+        .eq('id', templateId)
+
+      if (error) throw error
+
+      toast.success('Template berhasil dihapus')
+      fetchTemplates()
+    } catch (error) {
+      console.error('Error deleting template:', error)
+      toast.error('Gagal menghapus template')
+    }
+  }
 
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'sent':
-        return <Badge variant="primary" className="flex items-center gap-1"><Send className="w-3 h-3" /> Terkirim</Badge>
+        return <Badge variant="primary">Terkirim</Badge>
       case 'delivered':
-        return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Sampai</Badge>
+        return <Badge variant="success">Diterima</Badge>
       case 'read':
-        return <Badge variant="success" className="flex items-center gap-1"><CheckCircle className="w-3 h-3" /> Dibaca</Badge>
-      case 'pending':
-        return <Badge variant="warning" className="flex items-center gap-1"><Clock className="w-3 h-3" /> Menunggu</Badge>
+        return <Badge variant="success">Dibaca</Badge>
       case 'failed':
-        return <Badge variant="danger" className="flex items-center gap-1"><XCircle className="w-3 h-3" /> Gagal</Badge>
+        return <Badge variant="danger">Gagal</Badge>
+      case 'pending':
+        return <Badge variant="warning">Menunggu</Badge>
       default:
-        return <Badge variant="secondary">{status}</Badge>
+        return <Badge>{status}</Badge>
     }
   }
 
-  const getMessageTypeIcon = (type: string) => {
+  const getTypeIcon = (type: string) => {
     switch (type) {
       case 'payment_reminder':
-        return <Bell className="w-4 h-4 text-yellow-600" />
+        return <Clock className="w-4 h-4 text-yellow-600" />
       case 'payment_confirmation':
         return <CheckCircle className="w-4 h-4 text-green-600" />
       case 'general_announcement':
-        return <MessageCircle className="w-4 h-4 text-blue-600" />
+        return <Bell className="w-4 h-4 text-blue-600" />
       default:
         return <MessageCircle className="w-4 h-4 text-gray-600" />
     }
   }
 
-  const formatDateTime = (dateString: string) => {
+  const formatPhoneNumber = (phone: string) => {
+    if (!phone) return '-'
+    // Format: +62 812-3456-7890
+    const cleaned = phone.replace(/\D/g, '')
+    if (cleaned.length >= 10) {
+      return `+${cleaned.slice(0, 2)} ${cleaned.slice(2, 5)}-${cleaned.slice(5, 9)}-${cleaned.slice(9)}`
+    }
+    return phone
+  }
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return '-'
     return new Date(dateString).toLocaleString('id-ID', {
       day: '2-digit',
       month: 'short',
@@ -149,6 +310,16 @@ const WhatsAppPage = () => {
       hour: '2-digit',
       minute: '2-digit'
     })
+  }
+
+  if (isLoading) {
+    return (
+      <DashboardLayout>
+        <div className="flex items-center justify-center h-96">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   return (
@@ -159,79 +330,69 @@ const WhatsAppPage = () => {
           <div>
             <h1 className="text-2xl font-bold text-gray-900">WhatsApp Gateway</h1>
             <p className="text-gray-600 mt-1">
-              Kelola dan pantau pesan WhatsApp otomatis
+              Kelola pesan WhatsApp dan template komunikasi
             </p>
-          </div>
-          <div className="mt-4 sm:mt-0 flex space-x-3">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => setActiveTab('settings')}
-            >
-              <Settings className="w-4 h-4 mr-2" />
-              Pengaturan
-            </Button>
-            <Button onClick={() => setActiveTab('selective')}>
-              <Plus className="w-4 h-4 mr-2" />
-              Pesan Baru
-            </Button>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600">Total Pesan</p>
-                  <p className="text-2xl font-bold text-gray-900">{statusStats.total}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Total Pesan</p>
+                  <p className="text-2xl font-bold">{stats.total}</p>
                 </div>
-                <div className="bg-blue-100 p-3 rounded-full">
-                  <MessageCircle className="w-6 h-6 text-blue-600" />
-                </div>
+                <MessageCircle className="w-8 h-8 text-blue-600" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600">Terkirim</p>
-                  <p className="text-2xl font-bold text-green-600">{statusStats.sent}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Terkirim</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.sent}</p>
                 </div>
-                <div className="bg-green-100 p-3 rounded-full">
-                  <CheckCircle className="w-6 h-6 text-green-600" />
-                </div>
+                <Send className="w-8 h-8 text-blue-600" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600">Menunggu</p>
-                  <p className="text-2xl font-bold text-yellow-600">{statusStats.pending}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Diterima</p>
+                  <p className="text-2xl font-bold text-green-600">{stats.delivered}</p>
                 </div>
-                <div className="bg-yellow-100 p-3 rounded-full">
-                  <Clock className="w-6 h-6 text-yellow-600" />
-                </div>
+                <CheckCircle className="w-8 h-8 text-green-600" />
               </div>
             </CardContent>
           </Card>
 
           <Card>
             <CardContent className="p-6">
-              <div className="flex items-center">
-                <div className="flex-1">
-                  <p className="text-sm font-medium text-gray-600">Gagal</p>
-                  <p className="text-2xl font-bold text-red-600">{statusStats.failed}</p>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Gagal</p>
+                  <p className="text-2xl font-bold text-red-600">{stats.failed}</p>
                 </div>
-                <div className="bg-red-100 p-3 rounded-full">
-                  <XCircle className="w-6 h-6 text-red-600" />
+                <XCircle className="w-8 h-8 text-red-600" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardContent className="p-6">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-600">Menunggu</p>
+                  <p className="text-2xl font-bold text-yellow-600">{stats.pending}</p>
                 </div>
+                <Clock className="w-8 h-8 text-yellow-600" />
               </div>
             </CardContent>
           </Card>
@@ -242,25 +403,30 @@ const WhatsAppPage = () => {
           <nav className="-mb-px flex space-x-8">
             {[
               { id: 'messages', label: 'Riwayat Pesan', icon: MessageCircle },
-              { id: 'selective', label: 'Kirim Selektif', icon: Users },
-              { id: 'broadcast', label: 'Broadcast', icon: Bell },
-              { id: 'templates', label: 'Template Pesan', icon: Settings },
+              { id: 'templates', label: 'Template', icon: FileText },
+              { id: 'broadcast', label: 'Broadcast', icon: Users },
+              { id: 'selective', label: 'Kirim Selektif', icon: Send },
               { id: 'test', label: 'Test API', icon: Zap },
               { id: 'settings', label: 'Pengaturan', icon: Settings }
-            ].map((tab) => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center py-2 px-1 border-b-2 font-medium text-sm ${
-                  activeTab === tab.id
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <tab.icon className="w-4 h-4 mr-2" />
-                {tab.label}
-              </button>
-            ))}
+            ].map((tab) => {
+              const Icon = tab.icon
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id as any)}
+                  className={`
+                    py-2 px-1 border-b-2 font-medium text-sm flex items-center
+                    ${activeTab === tab.id
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }
+                  `}
+                >
+                  <Icon className="w-4 h-4 mr-2" />
+                  {tab.label}
+                </button>
+              )
+            })}
           </nav>
         </div>
 
@@ -271,124 +437,189 @@ const WhatsAppPage = () => {
               <CardTitle>Riwayat Pesan WhatsApp</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {messages.map((message) => (
-                  <div key={message.id} className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow">
-                    <div className="flex items-start justify-between mb-3">
-                      <div className="flex items-center gap-3">
-                        {getMessageTypeIcon(message.type)}
-                        <div>
-                          <h3 className="font-medium text-gray-900">
-                            {message.recipient === 'broadcast' ? 'Broadcast ke Semua' : message.recipient_name}
-                            {message.student_name && (
-                              <span className="text-sm text-gray-600 ml-2">({message.student_name})</span>
-                            )}
-                          </h3>
-                          <p className="text-sm text-gray-600">
-                            {message.recipient !== 'broadcast' && (
-                              <span className="flex items-center">
-                                <Phone className="w-3 h-3 mr-1" />
-                                {message.recipient}
-                              </span>
-                            )}
-                          </p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {getStatusBadge(message.status)}
-                        <Button variant="outline" size="sm">
-                          <Eye className="w-4 h-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    
-                    <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                      <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
-                        {message.message.length > 150 
-                          ? message.message.substring(0, 150) + '...'
-                          : message.message
-                        }
-                      </pre>
-                    </div>
-
-                    <div className="flex items-center justify-between text-xs text-gray-500">
-                      <span>
-                        {message.sent_at && (
-                          <span className="flex items-center">
-                            <Calendar className="w-3 h-3 mr-1" />
-                            Dikirim: {formatDateTime(message.sent_at)}
-                          </span>
-                        )}
-                        {message.scheduled_at && (
-                          <span className="flex items-center">
-                            <Clock className="w-3 h-3 mr-1" />
-                            Dijadwalkan: {formatDateTime(message.scheduled_at)}
-                          </span>
-                        )}
-                      </span>
-                      <span className="capitalize">{message.type.replace('_', ' ')}</span>
-                    </div>
-                  </div>
-                ))}
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left p-2">Tipe</th>
+                      <th className="text-left p-2">Penerima</th>
+                      <th className="text-left p-2">Pesan</th>
+                      <th className="text-center p-2">Status</th>
+                      <th className="text-left p-2">Waktu</th>
+                      <th className="text-center p-2">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {messages.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="text-center p-8 text-gray-500">
+                          Belum ada pesan yang dikirim
+                        </td>
+                      </tr>
+                    ) : (
+                      messages.map((message) => (
+                        <tr key={message.id} className="border-b hover:bg-gray-50">
+                          <td className="p-2">
+                            <div className="flex items-center">
+                              {getTypeIcon(message.type)}
+                            </div>
+                          </td>
+                          <td className="p-2">
+                            <div>
+                              <p className="font-medium">{message.recipient_name}</p>
+                              <p className="text-xs text-gray-600">
+                                {formatPhoneNumber(message.recipient_phone)}
+                              </p>
+                            </div>
+                          </td>
+                          <td className="p-2 max-w-md">
+                            <p className="text-sm text-gray-700 truncate">
+                              {message.message}
+                            </p>
+                          </td>
+                          <td className="p-2 text-center">
+                            {getStatusBadge(message.status)}
+                          </td>
+                          <td className="p-2">
+                            <p className="text-sm">
+                              {formatDate(message.sent_at || message.created_at)}
+                            </p>
+                          </td>
+                          <td className="p-2 text-center">
+                            <Button variant="outline" size="sm">
+                              <Eye className="w-4 h-4" />
+                            </Button>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
               </div>
             </CardContent>
           </Card>
-        )}
-
-        {activeTab === 'selective' && (
-          <BulkWhatsApp />
         )}
 
         {activeTab === 'templates' && (
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>Template Pesan</CardTitle>
-                <Button size="sm">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Tambah Template
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {messageTemplates.map((template) => (
-                  <div key={template.id} className="border border-gray-200 rounded-lg p-4">
-                    <div className="flex items-center justify-between mb-3">
-                      <h3 className="font-medium text-gray-900">{template.name}</h3>
-                      <Badge variant="secondary">{template.type.replace('_', ' ')}</Badge>
-                    </div>
-                    
-                    <div className="bg-gray-50 rounded-lg p-3 mb-3">
-                      <pre className="text-sm text-gray-700 whitespace-pre-wrap font-sans">
-                        {template.content}
-                      </pre>
-                    </div>
+          <div className="space-y-6">
+            <div className="flex justify-between items-center">
+              <h3 className="text-lg font-medium">Template Pesan</h3>
+              <Button onClick={() => setIsCreatingTemplate(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Buat Template
+              </Button>
+            </div>
 
-                    <div className="mb-3">
-                      <p className="text-xs text-gray-600 mb-1">Variabel yang tersedia:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {template.variables.map((variable) => (
-                          <span key={variable} className="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded">
-                            {`{${variable}}`}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm">Edit</Button>
-                      <Button variant="outline" size="sm">Gunakan</Button>
-                    </div>
+            {isCreatingTemplate && (
+              <Card>
+                <CardHeader>
+                  <CardTitle>Buat Template Baru</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Nama Template
+                    </label>
+                    <input
+                      type="text"
+                      value={newTemplate.name}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, name: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    />
                   </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Tipe Template
+                    </label>
+                    <select
+                      value={newTemplate.type}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, type: e.target.value })}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                    >
+                      <option value="payment_reminder">Reminder Pembayaran</option>
+                      <option value="payment_confirmation">Konfirmasi Pembayaran</option>
+                      <option value="general_announcement">Pengumuman Umum</option>
+                      <option value="custom">Custom</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                      Isi Template
+                    </label>
+                    <textarea
+                      value={newTemplate.content}
+                      onChange={(e) => setNewTemplate({ ...newTemplate, content: e.target.value })}
+                      rows={6}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
+                      placeholder="Gunakan {variable} untuk variabel dinamis"
+                    />
+                    <p className="text-sm text-gray-500 mt-1">
+                      Contoh variabel: {'{nama}'}, {'{nominal}'}, {'{tanggal}'}
+                    </p>
+                  </div>
+                  <div className="flex space-x-3">
+                    <Button onClick={saveTemplate}>
+                      <Save className="w-4 h-4 mr-2" />
+                      Simpan
+                    </Button>
+                    <Button variant="outline" onClick={() => setIsCreatingTemplate(false)}>
+                      Batal
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {templates.map((template) => (
+                <Card key={template.id}>
+                  <CardHeader>
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-base">{template.name}</CardTitle>
+                      <Badge>{template.type}</Badge>
+                    </div>
+                  </CardHeader>
+                  <CardContent>
+                    <pre className="text-sm text-gray-700 whitespace-pre-wrap bg-gray-50 p-3 rounded">
+                      {template.content}
+                    </pre>
+                    <div className="mt-4 flex justify-between items-center">
+                      <p className="text-xs text-gray-500">
+                        Variabel: {template.variables.join(', ')}
+                      </p>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => deleteTemplate(template.id)}
+                      >
+                        Hapus
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </div>
         )}
 
         {activeTab === 'broadcast' && (
           <BulkWhatsApp />
+        )}
+
+        {activeTab === 'selective' && (
+          <Card>
+            <CardHeader>
+              <CardTitle>Kirim Pesan Selektif</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-center py-12">
+                <Send className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-500">
+                  Fitur kirim pesan selektif akan segera hadir
+                </p>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
         {activeTab === 'test' && (
@@ -398,69 +629,17 @@ const WhatsAppPage = () => {
         {activeTab === 'settings' && (
           <Card>
             <CardHeader>
-              <CardTitle>Pengaturan WhatsApp Gateway</CardTitle>
+              <CardTitle>Pengaturan WhatsApp</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="max-w-2xl space-y-6">
-                <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+              <div className="space-y-4">
+                <div className="p-4 bg-blue-50 rounded-lg">
                   <div className="flex items-center">
-                    <CheckCircle className="w-5 h-5 text-green-600 mr-3" />
-                    <div>
-                      <h4 className="font-medium text-green-900">Status Koneksi</h4>
-                      <p className="text-sm text-green-700">Terhubung dengan StarSender API</p>
-                    </div>
+                    <AlertCircle className="w-5 h-5 text-blue-600 mr-2" />
+                    <p className="text-sm text-blue-900">
+                      Konfigurasi WhatsApp API dapat diatur di menu Pengaturan → Integrasi
+                    </p>
                   </div>
-                </div>
-
-                <div className="grid grid-cols-1 gap-6">
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      API Key
-                    </label>
-                    <input
-                      type="password"
-                      value="2d8714c0ceb932baf18b44285cb540b294a64871"
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      API URL
-                    </label>
-                    <input
-                      type="text"
-                      value="https://starsender.online/api"
-                      readOnly
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <h4 className="font-medium text-gray-900 mb-3">Pengaturan Otomatis</h4>
-                  <div className="space-y-3">
-                    <label className="flex items-center">
-                      <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" defaultChecked />
-                      <span className="ml-3 text-sm text-gray-700">Kirim reminder pembayaran otomatis</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" defaultChecked />
-                      <span className="ml-3 text-sm text-gray-700">Kirim konfirmasi pembayaran otomatis</span>
-                    </label>
-                    <label className="flex items-center">
-                      <input type="checkbox" className="rounded border-gray-300 text-blue-600 focus:ring-blue-500" />
-                      <span className="ml-3 text-sm text-gray-700">Reminder H-3 sebelum jatuh tempo</span>
-                    </label>
-                  </div>
-                </div>
-
-                <div className="flex justify-end space-x-3">
-                  <Button variant="outline" onClick={() => setActiveTab('test')}>
-                    <Zap className="w-4 h-4 mr-2" />
-                    Test API
-                  </Button>
-                  <Button>Simpan Pengaturan</Button>
                 </div>
               </div>
             </CardContent>

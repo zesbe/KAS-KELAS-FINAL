@@ -1,9 +1,1 @@
-{
-  "/dashboard/payments/page": "app/dashboard/payments/page.js",
-  "/dashboard/reports/page": "app/dashboard/reports/page.js",
-  "/page": "app/page.js",
-  "/dashboard/whatsapp/page": "app/dashboard/whatsapp/page.js",
-  "/dashboard/students/page": "app/dashboard/students/page.js",
-  "/dashboard/expenses/page": "app/dashboard/expenses/page.js",
-  "/dashboard/settings/page": "app/dashboard/settings/page.js"
-}
+{}
