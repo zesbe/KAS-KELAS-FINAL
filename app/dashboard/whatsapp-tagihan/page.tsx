@@ -381,7 +381,7 @@ export default function WhatsAppTagihanPage() {
 
     const failedResults = sendResults.filter(r => !r.success)
     if (failedResults.length === 0) {
-      toast.info('Tidak ada pesan yang gagal')
+      toast('Tidak ada pesan yang gagal', { icon: 'ℹ️' })
       return
     }
 
@@ -819,7 +819,7 @@ Variabel yang tersedia:
                         </div>
                         <div className="flex items-center space-x-2 ml-2">
                           {result.retryCount && result.retryCount > 0 && (
-                            <Badge variant="outline" className="text-xs">
+                            <Badge variant="secondary" className="text-xs">
                               {result.retryCount}x
                             </Badge>
                           )}
